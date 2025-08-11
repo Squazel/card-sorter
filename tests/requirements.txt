@@ -1,0 +1,6 @@
+# Test requirements for card-sorter project
+pytest>=8.2.0
+pytest-cov>=4.1.0
+pylint>=3.0.2
+pytest-xdist>=3.3.1  # For parallel test execution
+pytest-asyncio>=1.0.0  # For asynchronous tests
