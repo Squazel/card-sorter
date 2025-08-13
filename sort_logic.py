@@ -151,14 +151,14 @@ def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
 
 
 # ---------- Main sorting algorithm ----------
-def optimal_sort(deck: List[int], max_piles: Optional[int] = None, allow_bottom: bool = False) -> SortResult:
+def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult:
     """
     Find the optimal sorting sequence for the deck using the specified constraints.
     
     Args:
         deck: List of integers to sort
-        max_piles: Maximum number of piles to use (default: min(len(deck), 2))
-        allow_bottom: Whether bottom placement is allowed (default: False)
+        num_piles: Number of piles to use
+        allow_bottom: Whether bottom placement is allowed
         
     Returns:
         SortResult object containing plans, iterations, explanations, and history
@@ -173,88 +173,76 @@ def optimal_sort(deck: List[int], max_piles: Optional[int] = None, allow_bottom:
     # If deck is already sorted, return immediately
     if is_sorted(deck):
         return SortResult(iterations=0, plans=[], explanations=[], history=[deck[:]])
-    
-    # Set default max_piles if not specified
-    if max_piles is None:
-        max_piles = min(len(deck), 2)  # Default to 2 piles or fewer if deck is smaller
-    else:
-        # Cap to at most 2 piles regardless of input, and never more than number of cards
-        max_piles = min(max_piles, len(deck), 2)
-    if max_piles == 1 and not allow_bottom:
-        raise ValueError("Cannot use 1 pile unless allow_bottom is True.")
-    
-    # Find the minimum value and maximum value in the deck
-    min_val = min(deck)
-    max_val = max(deck)
-    
+
     # Initialize algorithm variables
     start_tuple = tuple(deck)
     best_result = None
     
-    # Try each valid number of piles from 1 to max_piles
-    for num_piles in range(1, max_piles + 1):
-        # Generate all possible configurations for this number of piles
-        configs = generate_all_configs(num_piles, allow_bottom)
-        
-        # BFS over deck states
-        queue = deque([start_tuple])
-        visited = set([start_tuple])
-        parent: Dict[Tuple[int, ...], Tuple[Tuple[int, ...], PassPlan]] = {}
-        
-        found = False
-        while queue and not found:
-            current_tuple = queue.popleft()
-            current = list(current_tuple)
-            
-            # Check if current state is sorted
-            if is_sorted(current):
-                found = True
-                # Reconstruct path
-                plans: List[PassPlan] = []
-                history: List[List[int]] = []
-                
-                # Start with the final state
-                state = current_tuple
-                while state != start_tuple:
-                    prev, plan = parent[state]
-                    plans.append(plan)
-                    history.append(list(state))
-                    state = prev
-                
-                # Reverse to get chronological order
-                plans.reverse()
-                history.reverse()
-                history.insert(0, deck[:])  # Add starting deck
-                
-                # Create explanations
-                explanations = []
-                for i, plan in enumerate(plans):
-                    config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
-                                           for j, c in enumerate(plan.config)])
-                    explanations.append(f"Pass {i+1}: {num_piles} piles ({config_desc})")
-                
-                # Update best result if this is the first solution or has fewer iterations
-                iterations = len(plans)
-                if best_result is None or iterations < best_result.iterations:
-                    best_result = SortResult(
-                        iterations=iterations,
-                        plans=plans,
-                        explanations=explanations,
-                        history=history
-                    )
-                    
-                # Stop the BFS for this pile count once we find a solution
-                break
-            
-            # Try each configuration
-            for config in configs:
-                plan = one_pass(current, config)
-                next_tuple = tuple(plan.next_deck)
-                
-                if next_tuple not in visited:
-                    visited.add(next_tuple)
-                    parent[next_tuple] = (current_tuple, plan)
-                    queue.append(next_tuple)
+    # Generate all possible configurations for this number of piles
+    configs = generate_all_configs(num_piles, allow_bottom)
+    # Filter out invalid config: 1 pile, top placement only
+    if num_piles == 1:
+        configs = [cfg for cfg in configs if cfg != ('T',)]
+
+    # BFS over deck states
+    queue = deque([start_tuple])
+    visited = set([start_tuple])
+    parent: Dict[Tuple[int, ...], Tuple[Tuple[int, ...], PassPlan]] = {}
+
+    found = False
+    while queue and not found:
+        current_tuple = queue.popleft()
+        current = list(current_tuple)
+
+        # Check if current state is sorted
+        if is_sorted(current):
+            found = True
+            # Reconstruct path
+            plans: List[PassPlan] = []
+            history: List[List[int]] = []
+
+            # Start with the final state
+            state = current_tuple
+            while state != start_tuple:
+                prev, plan = parent[state]
+                plans.append(plan)
+                history.append(list(state))
+                state = prev
+
+            # Reverse to get chronological order
+            plans.reverse()
+            history.reverse()
+            history.insert(0, deck[:])  # Add starting deck
+
+            # Create explanations
+            explanations = []
+            for i, plan in enumerate(plans):
+                config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                        for j, c in enumerate(plan.config)])
+                explanations.append(f"Pass {i+1}: {num_piles} piles ({config_desc})")
+
+            # Update best result if this is the first solution or has fewer iterations
+            iterations = len(plans)
+            if best_result is None or iterations < best_result.iterations:
+                best_result = SortResult(
+                    iterations=iterations,
+                    plans=plans,
+                    explanations=explanations,
+                    history=history
+                )
+
+            # Stop the BFS for this pile count once we find a solution
+            break
+
+        # Try each configuration
+        for config in configs:
+            plan = one_pass(current, config)
+            next_tuple = tuple(plan.next_deck)
+
+            if next_tuple not in visited:
+                visited.add(next_tuple)
+                parent[next_tuple] = (current_tuple, plan)
+                queue.append(next_tuple)
     
     # Return the best result found
     if best_result is not None:
@@ -262,67 +250,6 @@ def optimal_sort(deck: List[int], max_piles: Optional[int] = None, allow_bottom:
     
     # If no solution was found
     raise ValueError("Unable to sort the deck with the given constraints. This should not happen for a finite deck.")
-
-
-def advanced_optimal_sort(deck: List[int], max_piles: Optional[int] = None, allow_bottom: bool = False) -> SortResult:
-    """
-    Wrapper around optimal_sort that handles non-sequential inputs by mapping them to a sequential range.
-    This allows the algorithm to work with any set of distinct natural numbers.
-    
-    Args:
-        deck: List of integers to sort
-        max_piles: Maximum number of piles to use
-        allow_bottom: Whether bottom placement is allowed
-        
-    Returns:
-        SortResult object containing plans, iterations, explanations, and history
-    """
-    # Validate input
-    validate_input(deck)
-    
-    # If deck is already sorted, return immediately
-    if is_sorted(deck):
-        return SortResult(iterations=0, plans=[], explanations=[], history=[deck[:]])
-    
-    # Create a mapping from original values to sequential values
-    original_values = sorted(set(deck))
-    value_map = {val: i + 1 for i, val in enumerate(original_values)}
-    reverse_map = {i + 1: val for i, val in enumerate(original_values)}
-    
-    # Map the deck to sequential values
-    mapped_deck = [value_map[val] for val in deck]
-    
-    # Run the sorting algorithm on the mapped deck
-    result = optimal_sort(mapped_deck, max_piles, allow_bottom)
-    
-    # Map the results back to original values
-    original_history = []
-    for state in result.history:
-        original_history.append([reverse_map[val] for val in state])
-    
-    # Update the plans with original values
-    for plan in result.plans:
-        # Update the moves
-        for move in plan.moves:
-            move.card = reverse_map[move.card]
-        
-        # Update the next deck
-        plan.next_deck = [reverse_map[val] for val in plan.next_deck]
-        
-        # Update the piles snapshot
-        new_snapshot = {}
-        for key, values in plan.piles_snapshot.items():
-            new_snapshot[key] = [reverse_map[val] for val in values]
-        plan.piles_snapshot = new_snapshot
-    
-    # Create a new result with original values
-    return SortResult(
-        iterations=result.iterations,
-        plans=result.plans,
-        explanations=result.explanations,
-        history=original_history
-    )
-
 
 # ---------- User-friendly output functions ----------
 def format_human_readable_plan(result: SortResult) -> List[str]:
@@ -382,21 +309,21 @@ def format_human_readable_plan(result: SortResult) -> List[str]:
     return instructions
 
 
-def print_sort_solution(deck: List[int], max_piles: Optional[int] = None, allow_bottom: bool = False, verbose: bool = False) -> None:
+def print_sort_solution(deck: List[int], num_piles: int, allow_bottom: bool, verbose: bool = False) -> None:
     """
     Print a complete solution for sorting the given deck.
     
     Args:
         deck: List of integers to sort
-        max_piles: Maximum number of piles to use
+        num_piles: Maximum number of piles to use
         allow_bottom: Whether bottom placement is allowed
         verbose: Whether to print verbose logs
     """
     try:
         # Run sorting algorithm
         if verbose:
-            print(f"[VERBOSE] Starting sort: deck={deck}, max_piles={max_piles}, allow_bottom={allow_bottom}")
-        result = advanced_optimal_sort(deck, max_piles, allow_bottom)
+            print(f"[VERBOSE] Starting sort: deck={deck}, num_piles={num_piles}, allow_bottom={allow_bottom}")
+        result = optimal_sort(deck, num_piles, allow_bottom)
         if verbose:
             print(f"[VERBOSE] SortResult: iterations={result.iterations}, history={result.history}")
         # Generate and print human-readable instructions
@@ -408,21 +335,20 @@ def print_sort_solution(deck: List[int], max_piles: Optional[int] = None, allow_
 
 
 # ---------- Convenience API for CLI/tests ----------
-def sort_cards(deck: List[int], max_piles: int = 2, allow_bottom: bool = True, time_limit: Optional[float] = None, max_iterations: Optional[int] = None, verbose: bool = False) -> SortResult:
+def sort_cards(deck: List[int], num_piles: int, allow_bottom: bool, time_limit: Optional[float] = None, max_iterations: Optional[int] = None, verbose: bool = False) -> SortResult:
     """Convenience wrapper that enforces a maximum of 2 piles and validates output.
     
     Args:
         deck: List of integers to sort
-        max_piles: Requested maximum piles (will be capped to 2)
-        allow_bottom: Whether bottom placement is allowed (default True)
+        num_piles: Requested maximum piles
+        allow_bottom: Whether bottom placement is allowed
         time_limit: Ignored (for compatibility with previous API)
         max_iterations: Ignored (for compatibility with previous API)
         verbose: Whether to print verbose logs
     """
-    capped_max_piles = min(max_piles, 2)
     if verbose:
-        print(f"[VERBOSE] sort_cards called: deck={deck}, max_piles={max_piles}, allow_bottom={allow_bottom}")
-    result = advanced_optimal_sort(deck, max_piles=capped_max_piles, allow_bottom=allow_bottom)
+        print(f"[VERBOSE] sort_cards called: deck={deck}, num_piles={num_piles}, allow_bottom={allow_bottom}")
+    result = optimal_sort(deck, num_piles=num_piles, allow_bottom=allow_bottom)
     if verbose:
         print(f"[VERBOSE] SortResult: iterations={result.iterations}, history={result.history}")
     expected_sorted = sorted(deck)
@@ -434,47 +360,3 @@ def sort_cards(deck: List[int], max_piles: int = 2, allow_bottom: bool = True, t
             history=[deck] + (result.history[-1:] if result.history else [])
         )
     return result
-
-
-# ---------- Example usage ----------
-if __name__ == "__main__":
-    # Example inputs
-    example_deck = [7, 2, 10, 4, 9, 1, 5, 8, 3, 6]
-    
-    print("=" * 60)
-    print("Example 1: Default settings (max 2 piles, top placement only)")
-    print("=" * 60)
-    print_sort_solution(example_deck)
-    
-    print("\n" + "=" * 60)
-    print("Example 2: 3 piles, top placement only")
-    print("=" * 60)
-    print_sort_solution(example_deck, max_piles=3, allow_bottom=False)
-    
-    print("\n" + "=" * 60)
-    print("Example 3: 2 piles, allow bottom placement")
-    print("=" * 60)
-    print_sort_solution(example_deck, max_piles=2, allow_bottom=True)
-    
-    # Interactive mode
-    print("\n" + "=" * 60)
-    print("Interactive Mode")
-    print("=" * 60)
-    
-    try:
-        # Get input
-        input_str = input("Enter space-separated numbers to sort: ")
-        numbers = [int(x) for x in input_str.strip().split()]
-        
-        # Get sorting parameters
-        max_piles_input = input("Maximum number of piles (default=2): ").strip()
-        max_piles = int(max_piles_input) if max_piles_input else 2
-        
-        bottom_input = input("Allow placement at bottom of piles? (y/n, default=n): ").strip().lower()
-        allow_bottom = bottom_input in ('y', 'yes')
-        
-        print("\nSorting Solution:")
-        print_sort_solution(numbers, max_piles, allow_bottom)
-        
-    except ValueError as e:
-        print(f"Error: {e}")

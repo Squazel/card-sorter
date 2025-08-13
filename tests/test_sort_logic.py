@@ -58,7 +58,7 @@ Unit tests for the core sort_logic.py module.
 
 These tests verify the functionality of the sort_logic module with:
 - Different deck sizes (from 4 to 13 cards)
-- Various max_piles configurations
+- Various num_piles configurations
 - Different bottom placement settings
 - Both sequential and non-sequential inputs
 """
@@ -72,7 +72,7 @@ from typing import List, Tuple
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Import the sort_logic module
-from sort_logic import is_sorted, validate_input, one_pass, optimal_sort, advanced_optimal_sort, SortResult
+from sort_logic import is_sorted, validate_input, one_pass, optimal_sort, SortResult
 from sort_logic import sortedness_heuristic, generate_all_configs, sort_cards
 
 
@@ -82,7 +82,7 @@ class TestSortLogic(unittest.TestCase):
     def test_consistency_example(self):
         deck = [3, 2, 1]
         try:
-            result = advanced_optimal_sort(deck)
+            result = optimal_sort(deck)
             # Verify that history, plans, and explanations are consistent
             self.assertEqual(len(result.plans), result.iterations)
             self.assertEqual(len(result.history), result.iterations + 1)  # History includes initial state
@@ -100,11 +100,11 @@ class TestSortLogic(unittest.TestCase):
         validate_input([])                   # Empty list
         
         deck = [1, 2, 3, 4, 5]
-        result1 = optimal_sort(deck, max_piles=1)
+        result1 = optimal_sort(deck, piles=1)
         with self.assertRaises(ValueError):
             validate_input([1, 2, 2, 3])     # Duplicates
         deck2 = [1, 2, 3, 4]
-        result2 = optimal_sort(deck2, max_piles=2)
+        result2 = optimal_sort(deck2, piles=2)
         with self.assertRaises(ValueError):
             validate_input([0, 1, 2, 3])     # Zero (not a natural number)
         
@@ -123,7 +123,7 @@ class TestSortLogic(unittest.TestCase):
         # For one pile, expected_deck is just the pile (pickup order)
         expected_deck = pile_content
         self.assertEqual(result.next_deck, expected_deck)
-        result_with_bottom = optimal_sort(deck, max_piles=2, allow_bottom=True)
+        result_with_bottom = optimal_sort(deck, piles=2, allow_bottom=True)
         # Test with a simple deck and one pile (bottom)
         deck = [3, 1, 4, 2]
         result = one_pass(deck, ("B",))
@@ -159,28 +159,28 @@ class TestSortLogic(unittest.TestCase):
         
         # Reverse sorted (should be sortable in one pass with 1 pile)
         deck = [4, 3, 2, 1]
-        result = advanced_optimal_sort(deck)
+        result = optimal_sort(deck)
         self.assertEqual(result.iterations, 1)
         self.assertEqual(result.history[-1], [1, 2, 3, 4])
 
     def test_optimal_sort_different_pile_counts(self):
-        """Test optimal_sort with different max_piles values."""
+        """Test optimal_sort with different num_piles values."""
         # Use a simple deck that we know can be sorted
         deck = [4, 3, 2, 1]
         
         try:
             # With 1 pile
-            result1 = optimal_sort(deck, max_piles=1)
+            result1 = optimal_sort(deck, piles=1)
             self.assertTrue(is_sorted(result1.history[-1]))
             
             # With 2 piles
-            result2 = optimal_sort(deck, max_piles=2)
+            result2 = optimal_sort(deck, piles=2)
             self.assertTrue(is_sorted(result2.history[-1]))
             
             # More piles should generally require fewer or equal iterations
             self.assertLessEqual(result2.iterations, result1.iterations)
         except ValueError as e:
-            result = advanced_optimal_sort(deck)
+            result = optimal_sort(deck)
 
     def test_optimal_sort_with_bottom_placement(self):
         """Test optimal_sort with bottom placement allowed vs not allowed."""
@@ -189,11 +189,10 @@ class TestSortLogic(unittest.TestCase):
         
         try:
             # Without bottom placement
-            result_no_bottom = optimal_sort(deck, max_piles=2, allow_bottom=False)
+            result_no_bottom = optimal_sort(deck, piles=2, allow_bottom=False)
             self.assertTrue(is_sorted(result_no_bottom.history[-1]))
-            result = advanced_optimal_sort(deck)
             # With bottom placement
-            result_with_bottom = optimal_sort(deck, max_piles=2, allow_bottom=True)
+            result_with_bottom = optimal_sort(deck, piles=2, allow_bottom=True)
             self.assertTrue(is_sorted(result_with_bottom.history[-1]))
             
             # Bottom placement should generally allow equal or fewer iterations
@@ -201,22 +200,14 @@ class TestSortLogic(unittest.TestCase):
         except ValueError as e:
             self.skipTest(f"Skipping test due to algorithm limitation: {e}")
 
-    def test_advanced_optimal_sort_non_sequential(self):
-        """Test advanced_optimal_sort with non-sequential numbers."""
+    def test_optimal_sort_non_sequential(self):
+        """Test optimal_sort with non-sequential numbers."""
         # Test with simpler non-sequential numbers that should be sortable
         deck = [42, 17, 8]
-        
         try:
-            result = advanced_optimal_sort(deck)
-            
+            result = optimal_sort(deck)
             # Final deck should be sorted
             self.assertEqual(result.history[-1], [8, 17, 42])
-            
-            # Check that the mapping worked correctly
-            # for plan in result.plans:
-            #     result = advanced_optimal_sort(deck, max_piles=piles, allow_bottom=allow_bottom)
-            #     self.assertIn(move.card, deck)
-            #     self.assertEqual(sorted(plan.next_deck), sorted(deck))
         except ValueError as e:
             self.skipTest(f"Skipping test due to algorithm limitation: {e}")
 
@@ -224,7 +215,7 @@ class TestSortLogic(unittest.TestCase):
         """Test that the result is consistent in its properties."""
         deck = [3, 2, 1]
         try:
-            result = advanced_optimal_sort(deck)
+            result = optimal_sort(deck)
             # Verify that history, plans, and explanations are consistent
             self.assertEqual(len(result.plans), result.iterations)
             self.assertEqual(len(result.history), result.iterations + 1)  # History includes initial state
@@ -249,7 +240,7 @@ class TestSortLogic(unittest.TestCase):
         for size in [3, 4]:
             try:
                 deck = self.generate_random_deck(size)
-                result = advanced_optimal_sort(deck)
+                result = optimal_sort(deck)
                 self.assertTrue(is_sorted(result.history[-1]))
                 self.assertEqual(sorted(result.history[-1]), sorted(deck))
             except ValueError as e:
@@ -260,7 +251,7 @@ class TestSortLogic(unittest.TestCase):
         # Test with a smaller non-sequential deck
         try:
             deck = self.generate_random_deck(3, sequential=False)
-            result = advanced_optimal_sort(deck)
+            result = optimal_sort(deck)
             self.assertTrue(is_sorted(result.history[-1]))
             self.assertEqual(sorted(result.history[-1]), sorted(deck))
         except ValueError as e:
@@ -283,7 +274,7 @@ class TestSortLogic(unittest.TestCase):
                 base_deck = list(range(1, size + 1))
                 deck = list(reversed(base_deck))
                 
-                result = advanced_optimal_sort(deck, max_piles=piles, allow_bottom=allow_bottom)
+                result = optimal_sort(deck, piles=piles, allow_bottom=allow_bottom)
                 
                 # Verify sorting worked
                 self.assertTrue(is_sorted(result.history[-1]))
@@ -299,26 +290,26 @@ class TestSortLogic(unittest.TestCase):
     def test_edge_cases(self):
         """Test edge cases for the sorting algorithms."""
         # Empty deck
-        result = advanced_optimal_sort([])
+        result = optimal_sort([])
         self.assertEqual(result.iterations, 0)
         
         # Single card deck
-        result = advanced_optimal_sort([42])
+        result = optimal_sort([42])
         self.assertEqual(result.iterations, 0)
         
         # Already sorted deck
-        result = advanced_optimal_sort([1, 2, 3, 4, 5])
+        result = optimal_sort([1, 2, 3, 4, 5])
         self.assertEqual(result.iterations, 0)
         
         # Simple deck that should be sortable
         try:
             deck = [3, 2, 1]
             # Maximum piles equals deck size
-            result = advanced_optimal_sort(deck, max_piles=len(deck))
+            result = optimal_sort(deck, num_piles=len(deck))
             self.assertTrue(is_sorted(result.history[-1]))
             
-            # Very large max_piles (should be capped at deck size)
-            result = advanced_optimal_sort(deck, max_piles=100)
+            # Very large num_piles (should be capped at deck size)
+            result = optimal_sort(deck, num_piles=100)
             self.assertTrue(is_sorted(result.history[-1]))
         except ValueError as e:
             self.skipTest(f"Skipping sortable deck test due to algorithm limitation: {e}")

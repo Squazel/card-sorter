@@ -57,13 +57,13 @@ The `card_sorter_cli.py` script provides an interactive command-line interface f
 You can use the sorting algorithm directly in your code:
 
 ```python
-from sort_logic import advanced_optimal_sort, print_sort_solution, sort_cards
+from sort_logic import optimal_sort, print_sort_solution, sort_cards
 
 # Example with a list of numbers
 numbers = [7, 2, 10, 4, 9, 1, 5, 8, 3, 6]
 
 # Get a sorting solution (BFS search)
-result = advanced_optimal_sort(
+result = optimal_sort(
     deck=numbers,
     max_piles=2,       # Maximum number of piles to use (capped to 2 internally)
     allow_bottom=True  # Whether to allow placement at the bottom of piles
@@ -77,7 +77,7 @@ validated = sort_cards(
 )
 
 # Print a human-readable solution for either result
-print_sort_solution(numbers, max_piles=2, allow_bottom=True)
+print_sort_solution(numbers, num_piles=2, allow_bottom=True)
 ```
 
 ## Development

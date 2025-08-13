@@ -8,7 +8,7 @@ Allows users to input a list of cards and select a card ordering scheme.
 import sys
 from typing import List, Dict, Any, Tuple
 from card_ordering_rules import get_sort_mapping, GAME_DEFINITIONS
-from sort_logic import advanced_optimal_sort, print_sort_solution, sort_cards
+from sort_logic import print_sort_solution, sort_cards
 
 
 def get_game_selection() -> str:
@@ -23,7 +23,7 @@ def get_game_selection() -> str:
     
     print("\nSelect Card Ordering Scheme")
     print("--------------------------")
-    print("Enter the number of your choice:")
+    print("Enter the number of your choice (or press Enter for option 1):")
     
     # Display options
     for i, game in enumerate(game_options):
@@ -33,9 +33,12 @@ def get_game_selection() -> str:
     # Get user selection
     while True:
         try:
-            choice = input("\nEnter selection (1-{}): ".format(len(game_options)))
-            selection = int(choice) - 1
-            
+            choice = input("\nEnter selection (1-{}): ".format(len(game_options))).strip()
+            # Use default if empty
+            if not choice:
+                selection = 0
+            else:
+                selection = int(choice) - 1
             if 0 <= selection < len(game_options):
                 return game_options[selection]
             else:
@@ -83,58 +86,22 @@ def parse_cards(card_string: str) -> List[str]:
     return valid_cards
 
 
-def display_sorted_cards(cards: List[str], game: str):
+def display_sorted_cards(cards: List[str], mapping):
     """
-    Display the sorted cards based on the selected game rules.
-    Also shows their numerical representation according to the game's ordering.
-    
+    Display the sorted cards based on the provided mapping.
     Args:
         cards: List of card strings
-        game: The name of the game ordering to use
+        mapping: The mapping object to use
     """
-    # Get the mapping for the selected game
-    mapping = get_sort_mapping(game)
-    
     try:
-        # Convert cards to values and create pairs
-        card_values = [(card, mapping.card_to_value(card)) for card in cards]
-        
-        # Sort by value
-        sorted_card_values = sorted(card_values, key=lambda x: x[1])
-        sorted_cards = [card for card, _ in sorted_card_values]
-        
-        print(f"\nCards sorted according to '{game}' rules:")
-        
-        # Display with numerical values
-        print("\nCard numerical representations:")
-        print("Card : Value")
-        print("-------------")
-        for card, value in sorted_card_values:
-            print(f"{card} : {value}")
-            
-        print("\nFull order list:")
+        sorted_cards = sorted(cards, key=mapping.card_to_value)
+        print(f"\nCards sorted according to mapping rules:")
         print(", ".join(sorted_cards))
-        
-        # Show cards by suit
-        suits = mapping.suits
-        
-        print("\nOrganized by suit:")
-        for suit in suits:
-            # Match cards by lowercase suit to ensure case insensitivity
-            suit_cards_values = [(c, v) for c, v in sorted_card_values if c[1].lower() == suit.lower()]
-            if suit_cards_values:
-                suit_cards = [c for c, _ in suit_cards_values]
-                print(f"{suit.upper()}: {', '.join(suit_cards)}")
-                
-        # Return the card values for use in next steps
-        return sorted_card_values
-        
+        # Return list of (card, value) pairs for compatibility
+        return [(card, mapping.card_to_value(card)) for card in sorted_cards]
     except KeyError as e:
         print(f"\nError: Invalid card format found: {e}")
         print("Please make sure all cards follow the expected format for the selected game.")
-        print("Debug info:")
-        print(f"Cards: {cards}")
-        print(f"Sample valid card format: {mapping.value_to_card(1)}")
         return []
 
 
@@ -202,19 +169,21 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
     expected_sorted = sorted(values)
     
     try:
+        print(values)
         # Use the consolidated solver which caps piles at 2 and validates output
-        result = sort_cards(values, max_piles=piles, allow_bottom=allow_bottom)
+        result = sort_cards(values, num_piles=piles, allow_bottom=allow_bottom)
+        
+        # Print the final sorted deck for debugging
+        print(result.history[-1])
+        print(expected_sorted)
+        print(len(result.history))
+        print(result.iterations)
         
         # Validate the result
         if result.history and result.history[-1] == expected_sorted:
             return result.iterations, result.explanations
         else:
-            # Fall back to the original advanced_optimal_sort just in case
-            result = advanced_optimal_sort(values, max_piles=piles, allow_bottom=allow_bottom)
-            if result.history and result.history[-1] == expected_sorted:
-                return result.iterations, result.explanations
-            else:
-                raise ValueError("Failed to produce a correctly sorted result")
+            raise ValueError("Failed to produce a correctly sorted result")
         
     except Exception as e:
         print(f"Error during sorting: {e}")
@@ -238,51 +207,58 @@ def main():
     
     # Get game selection using simple console menu
     game = get_game_selection()
+    mapping = get_sort_mapping(game)
     
-    # Display sorted cards and get the sorted card values
-    card_values = display_sorted_cards(cards, game)
-    
-    if not card_values:
+    # Display sorted cards and get the sorted card values for validation
+    sorted_card_values = display_sorted_cards(cards, mapping)
+
+    if not sorted_card_values:
         return
-    
+
+    # Convert the cards to values (in original input order)
+    original_card_values = [(card, mapping.card_to_value(card)) for card in cards]
+
     # Get sorting parameters
     max_piles = get_max_piles()
     bottom_placement_allowed = get_bottom_placement()
-    
+
     print(f"\nSorting Configuration:")
     print(f"- Game: {game}")
     print(f"- Maximum piles: {max_piles}")
     print(f"- Allow placement at bottom: {'Yes' if bottom_placement_allowed else 'No'}")
-    
+
     print("\nRunning sorting analysis for different configurations...")
     print("-" * 60)
     print(f"| {'Piles':<5} | {'Bottom':<8} | {'Iterations':<10} |")
     print("-" * 60)
-    
+
     # Loop through different configurations
     best_config = None
     min_iterations = float('inf')
     best_explanations = []
-    
+
     for piles in range(1, max_piles + 1):
         # Determine which bottom placement options to try
         bottom_options = [True, False] if bottom_placement_allowed else [False]
-        
+
         for allow_bottom in bottom_options:
+            if piles == 1 and not allow_bottom:
+                continue  # Skip invalid configuration
+
             # Run the sorting algorithm
-            iterations, explanations = run_sorting_algorithm(card_values, piles, allow_bottom)
-            
+            iterations, explanations = run_sorting_algorithm(original_card_values, piles, allow_bottom)
+
             if iterations > 0 and iterations < min_iterations:
                 min_iterations = iterations
                 best_config = (piles, allow_bottom)
                 best_explanations = explanations
-                
+
             bottom_str = "Yes" if allow_bottom else "No"
             iter_str = str(iterations) if iterations >= 0 else "Error"
             print(f"| {piles:<5} | {bottom_str:<8} | {iter_str:<10} |")
-    
+
     print("-" * 60)
-    
+
     # Show the best configuration
     if best_config:
         piles, allow_bottom = best_config
@@ -293,7 +269,7 @@ def main():
             print(f"- {step}")
     else:
         print("\nNo valid sorting configuration found.")
-    
+
     print("\nNote: 'T' means cards are placed on top (reverse order when picked up)")
     print("      'B' means cards are placed on bottom (preserve order when picked up)")
 
