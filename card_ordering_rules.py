@@ -10,9 +10,9 @@ from typing import Dict, List, Callable, Tuple, NamedTuple
 # --- Common card ordering constants ---
 
 # Suit orderings
-SUITS_SPADES_FIRST = ['S', 'H', 'D', 'C']  # Bridge standard (Spades, Hearts, Diamonds, Clubs)
-SUITS_HEARTS_FIRST = ['H', 'S', 'D', 'C']  # Hearts first variant
-SUITS_BY_COLOR = ['S', 'C', 'H', 'D']      # By color (black then red)
+SUITS_SPADES_FIRST = ['s', 'h', 'd', 'c']  # Bridge standard (Spades, Hearts, Diamonds, Clubs)
+SUITS_HEARTS_FIRST = ['h', 's', 'd', 'c']  # Hearts first variant
+SUITS_BY_COLOR = ['s', 'c', 'h', 'd']      # By color (black then red)
 
 # Rank orderings
 VALUES_A_HIGH = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2']  # Ace high (Bridge)
@@ -39,9 +39,13 @@ def create_mapping(suits: List[str], ranks: List[str]) -> CardMapping:
     card_to_value = {}
     value_to_card = {}
     
+    # Normalize the case of suits and ranks in the mapping
+    normalized_suits = [s.lower() for s in suits]
+    normalized_ranks = [r.upper() for r in ranks]
+    
     value = 1
-    for suit in suits:
-        for rank in ranks:
+    for suit in normalized_suits:
+        for rank in normalized_ranks:
             card = f"{rank}{suit}"
             card_to_value[card] = value
             value_to_card[value] = card
@@ -49,7 +53,17 @@ def create_mapping(suits: List[str], ranks: List[str]) -> CardMapping:
     
     def card_to_value_fn(card: str) -> int:
         """Convert card string (e.g., 'AS', 'TD') to its numeric sort value."""
-        return card_to_value[card]
+        # Normalize the case of input card before lookup
+        if len(card) != 2:
+            raise ValueError(f"Invalid card format: {card}")
+        
+        normalized_card = f"{card[0].upper()}{card[1].lower()}"
+        if normalized_card in card_to_value:
+            return card_to_value[normalized_card]
+        
+        # If not found, raise a more helpful error
+        raise KeyError(f"Card '{card}' not found. Expected format is rank+suit (e.g., 'As', 'TD', '2h'). "
+                      f"Valid ranks: {normalized_ranks}, valid suits: {normalized_suits}")
     
     def value_to_card_fn(value: int) -> str:
         """Convert numeric sort value to card string (e.g., 'AS', 'TD')."""
