@@ -8,7 +8,7 @@ Allows users to input a list of cards and select a card ordering scheme.
 import sys
 from typing import List, Dict, Any, Tuple
 from card_ordering_rules import get_sort_mapping, GAME_DEFINITIONS
-from sort_logic_chatty import optimal_sort
+from sort_logic import advanced_optimal_sort, print_sort_solution, sort_cards
 
 
 def get_game_selection() -> str:
@@ -198,48 +198,23 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
     """
     # Extract just the values for sorting
     values = [value for _, value in cards_with_values]
+    # Create expected sorted values for validation
+    expected_sorted = sorted(values)
     
     try:
-        # Call the sorting algorithm
-        if allow_bottom:
-            # With bottom placement allowed, we can use all configurations
-            plans, count = optimal_sort(values, piles)
+        # Use the consolidated solver which caps piles at 2 and validates output
+        result = sort_cards(values, max_piles=piles, allow_bottom=allow_bottom)
+        
+        # Validate the result
+        if result.history and result.history[-1] == expected_sorted:
+            return result.iterations, result.explanations
         else:
-            # Without bottom placement, we need to filter the configurations
-            # This is a simplified approach - the actual sort_logic_chatty might need modification
-            # to properly support this constraint
-            from sort_logic_chatty import one_pass
-            
-            # Manually implement a solution with only 'T' configs
-            current_deck = values.copy()
-            count = 0
-            explanations = []
-            
-            while not all(current_deck[i] <= current_deck[i+1] for i in range(len(current_deck)-1)):
-                if count > 20:  # Safety limit
-                    return count, ["Maximum iterations exceeded. Consider allowing bottom placement."]
-                
-                # Use only top placement (reverse) configurations
-                if piles == 1:
-                    config = ("T",)
-                else:
-                    config = ("T", "T")
-                
-                plan = one_pass(current_deck, config)
-                current_deck = plan.next_deck
-                config_str = "+".join(plan.config)
-                explanations.append(f"Pass {count+1} with config {config_str}")
-                count += 1
-            
-            return count, explanations
-            
-        # Extract explanations from the plans
-        explanations = []
-        for i, plan in enumerate(plans, 1):
-            config_str = "+".join(plan.config)
-            explanations.append(f"Pass {i} with config {config_str}")
-            
-        return count, explanations
+            # Fall back to the original advanced_optimal_sort just in case
+            result = advanced_optimal_sort(values, max_piles=piles, allow_bottom=allow_bottom)
+            if result.history and result.history[-1] == expected_sorted:
+                return result.iterations, result.explanations
+            else:
+                raise ValueError("Failed to produce a correctly sorted result")
         
     except Exception as e:
         print(f"Error during sorting: {e}")

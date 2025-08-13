@@ -67,11 +67,11 @@ def create_mapping(suits: List[str], ranks: List[str]) -> CardMapping:
     
     def value_to_card_fn(value: int) -> str:
         """Convert numeric sort value to card string (e.g., 'AS', 'TD')."""
-        return value_to_card[value]
+        return value_to_card[value].upper()
     
     def get_order_fn() -> List[str]:
         """Return the list of card strings in sort order."""
-        return [value_to_card[v] for v in range(1, len(value_to_card) + 1)]
+        return [value_to_card[v].upper() for v in range(1, len(value_to_card) + 1)]
     
     return CardMapping(
         card_to_value=card_to_value_fn,

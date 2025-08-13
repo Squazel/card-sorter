@@ -1,5 +1,5 @@
 """
-Integration test for using card_ordering_rules.py with sort_logic_chatty.py
+Integration test for using card_ordering_rules.py with consolidated sort_logic.py
 
 Tests that the card ordering rules work correctly with the sorting algorithm.
 """
@@ -7,7 +7,7 @@ Tests that the card ordering rules work correctly with the sorting algorithm.
 import unittest
 import copy
 import card_ordering_rules as cor
-import sort_logic_chatty as slc
+from sort_logic import advanced_optimal_sort
 
 class TestIntegration(unittest.TestCase):
     
@@ -25,21 +25,11 @@ class TestIntegration(unittest.TestCase):
         # Make a copy to verify later
         original_card_values = copy.deepcopy(card_values)
         
-        # Run the sorting algorithm
-        print_output = False  # Don't print the sorting steps
-        if print_output:
-            slc.print_solution(card_values, piles=1)
-            slc.print_solution(card_values, piles=2)
-        
-        # Use the algorithm to get the sort plans
-        plans, count = slc.optimal_sort(card_values, piles=2)
-        
-        # Apply the plans to sort the deck
-        deck = card_values
-        for plan in plans:
-            deck = plan.next_deck
-        
-        # Check that the result is sorted
+        # Use consolidated algorithm (caps piles at 2 internally)
+        result = advanced_optimal_sort(card_values, max_piles=2, allow_bottom=False)
+        deck = result.history[-1]
+
+        # Check that the result is sorted numerically according to mapping values
         self.assertEqual(deck, sorted(original_card_values))
         
         # Convert the sorted values back to cards
@@ -59,20 +49,14 @@ class TestIntegration(unittest.TestCase):
         # Sort using bridge rules
         bridge_mapping = cor.get_sort_mapping('bridge')
         bridge_values = [bridge_mapping.card_to_value(card) for card in cards]
-        bridge_plans, _ = slc.optimal_sort(bridge_values, piles=2)
-        
-        bridge_sorted_deck = bridge_values
-        for plan in bridge_plans:
-            bridge_sorted_deck = plan.next_deck
+        bridge_result = advanced_optimal_sort(bridge_values, max_piles=2, allow_bottom=False)
+        bridge_sorted_deck = bridge_result.history[-1]
         
         # Sort using hearts rules (different suit ordering)
         hearts_mapping = cor.get_sort_mapping('hearts')
         hearts_values = [hearts_mapping.card_to_value(card) for card in cards]
-        hearts_plans, _ = slc.optimal_sort(hearts_values, piles=2)
-        
-        hearts_sorted_deck = hearts_values
-        for plan in hearts_plans:
-            hearts_sorted_deck = plan.next_deck
+        hearts_result = advanced_optimal_sort(hearts_values, max_piles=2, allow_bottom=False)
+        hearts_sorted_deck = hearts_result.history[-1]
         
         # The sorted values should be different because of different orderings
         bridge_sorted_cards = [bridge_mapping.value_to_card(value) for value in bridge_sorted_deck]

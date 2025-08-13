@@ -9,6 +9,9 @@ The test suite includes:
 1. **Unit Tests**: Testing individual components in isolation
    - `test_card_ordering_rules.py`: Tests for card ordering and mapping functionality
    - `test_card_ordering_usage.py`: Tests for practical usage patterns of card orderings
+   - `test_sort_logic.py`: Tests for the core sort logic algorithm
+   - `test_sort_logic_enhanced.py`: Tests targeting larger-deck scenarios using the consolidated solver
+   - `test_sort_logic_v2.py`: Formerly v2 tests, now exercising the unified solver API
 
 2. **Integration Tests**: Testing components working together
    - `test_integration.py`: Tests integrating card ordering with sorting algorithms
