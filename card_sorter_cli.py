@@ -7,6 +7,7 @@ Allows users to input a list of cards and select a card ordering scheme.
 
 import sys
 from typing import List, Dict, Any, Tuple
+from input_helpers import CardInputHelper
 from card_ordering_rules import get_sort_mapping, GAME_DEFINITIONS
 from sort_logic import print_sort_solution, sort_cards
 
@@ -57,32 +58,17 @@ def parse_cards(card_string: str) -> List[str]:
     Returns:
         A list of card strings in standardized format (uppercase rank, lowercase suit)
     """
-    cards = [card.strip() for card in card_string.split(',')]
-    
-    # Validate each card
-    valid_cards = []
-    for card in cards:
-        if len(card) != 2:
-            print(f"Error: Invalid card format '{card}'. Each card should be 2 characters.")
-            continue
-        
-        # Normalize case: uppercase rank, lowercase suit
-        rank, suit = card[0].upper(), card[1].lower()
-        
-        if rank not in "A23456789TJQK":
-            print(f"Error: Invalid rank '{rank}' in card '{card}'.")
-            continue
-        
-        if suit not in "shdc":
-            print(f"Error: Invalid suit '{suit}' in card '{card}'.")
-            continue
-        
-        valid_cards.append(f"{rank}{suit}")
-    
+    # Parse input string into card list
+    parsed_cards, parse_errors = CardInputHelper.parse_cards(card_string)
+    # Validate the parsed card list for duplicates and correctness
+    valid_cards, errors = CardInputHelper.validate_card_list(parsed_cards)
+    # Combine errors from parsing and validation
+    all_errors = parse_errors + errors
+    for error in all_errors:
+        print(f"Error: {error}")
     if not valid_cards:
         print("No valid cards found.")
         return []
-    
     return valid_cards
 
 
@@ -113,20 +99,12 @@ def get_max_piles():
         int: Maximum number of piles (1-5)
     """
     while True:
-        try:
-            max_piles_input = input("Maximum number of piles to deal (1-5) [default: 2]: ").strip()
-            
-            # Use default if empty
-            if not max_piles_input:
-                return 2
-            
-            max_piles = int(max_piles_input)
-            if 1 <= max_piles <= 5:
-                return max_piles
-            else:
-                print("Please enter a number between 1 and 5.")
-        except ValueError:
-            print("Please enter a valid number.")
+        max_piles_input = input("Maximum number of piles to deal (1-5) [default: 2]: ").strip()
+        max_piles, error = CardInputHelper.validate_max_piles(max_piles_input)
+        if not error:
+            return max_piles
+        else:
+            print(error)
 
 
 def get_bottom_placement():
@@ -137,18 +115,12 @@ def get_bottom_placement():
         bool: True if placement at bottom is allowed, False otherwise
     """
     while True:
-        bottom_placement = input("Allow placement at bottom of pile? (yes/no) [default: no]: ").strip().lower()
-        
-        # Use default if empty
-        if not bottom_placement:
-            return False
-            
-        if bottom_placement in ('y', 'yes'):
-            return True
-        elif bottom_placement in ('n', 'no'):
-            return False
+        bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: no]: ")
+        allow_bottom, error = CardInputHelper.validate_bottom_placement(bottom_placement_input)
+        if not error:
+            return allow_bottom
         else:
-            print("Please enter 'yes' or 'no'.")
+            print(error)
 
 
 def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, allow_bottom: bool) -> Tuple[int, List[str]]:
@@ -169,15 +141,8 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
     expected_sorted = sorted(values)
     
     try:
-        print(values)
         # Use the consolidated solver which caps piles at 2 and validates output
         result = sort_cards(values, num_piles=piles, allow_bottom=allow_bottom)
-        
-        # Print the final sorted deck for debugging
-        print(result.history[-1])
-        print(expected_sorted)
-        print(len(result.history))
-        print(result.iterations)
         
         # Validate the result
         if result.history and result.history[-1] == expected_sorted:
@@ -265,8 +230,16 @@ def main():
         print(f"\nBest configuration: {piles} pile(s), bottom placement {'allowed' if allow_bottom else 'not allowed'}")
         print(f"Minimum iterations required: {min_iterations}")
         print("\nSorting steps:")
-        for step in best_explanations:
-            print(f"- {step}")
+        print("Pass | " + " | ".join([f"Card {i+1}" for i in range(len(cards))]))
+        print("-" * (7 + len(cards) * 12))
+        values = [value for _, value in original_card_values]
+        try:
+            result = sort_cards(values, num_piles=piles, allow_bottom=allow_bottom)
+            steps = result.get_standard_steps(len(cards))
+            for pass_num, row in enumerate(steps, 1):
+                print(f"{pass_num:<4} | " + " | ".join(row))
+        except Exception as e:
+            print(f"Error displaying sorting steps: {e}")
     else:
         print("\nNo valid sorting configuration found.")
 

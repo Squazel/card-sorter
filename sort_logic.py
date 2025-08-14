@@ -30,6 +30,15 @@ class PassPlan:
 
 @dataclass
 class SortResult:
+    def get_standard_steps(self, num_cards: int) -> List[List[str]]:
+        """
+        Returns a list of lists, each sublist is a pass, each element is '<pile>,<T/B>' for each card in input order.
+        """
+        steps = []
+        for pass_idx, plan in enumerate(self.plans):
+            row = [f"{(idx % len(plan.config))+1}{plan.config[(idx % len(plan.config))]}" for idx in range(num_cards)]
+            steps.append(row)
+        return steps
     """Complete result of the sorting algorithm."""
     iterations: int
     plans: List[PassPlan]
@@ -189,14 +198,12 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
     visited = set([start_tuple])
     parent: Dict[Tuple[int, ...], Tuple[Tuple[int, ...], PassPlan]] = {}
 
-    found = False
-    while queue and not found:
+    while queue:
         current_tuple = queue.popleft()
         current = list(current_tuple)
 
         # Check if current state is sorted
         if is_sorted(current):
-            found = True
             # Reconstruct path
             plans: List[PassPlan] = []
             history: List[List[int]] = []
@@ -230,9 +237,7 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
                     explanations=explanations,
                     history=history
                 )
-
-            # Stop the BFS for this pile count once we find a solution
-            break
+            continue
 
         # Try each configuration
         for config in configs:
