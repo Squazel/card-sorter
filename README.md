@@ -152,6 +152,18 @@ print_sort_solution(numbers, num_piles=2, allow_bottom=True)
 
 For information on development setup, testing, and contributing to this project, see the [testing README](tests/README.md).
 
+### Continuous Integration
+
+This project uses GitHub Actions to automatically run all unit and integration tests on every commit to any branch. The CI workflow:
+
+- Runs on every push and pull request
+- Sets up Python 3.12
+- Installs all test dependencies
+- Executes the complete test suite using pytest
+- Generates and uploads coverage reports
+
+You can view the test results and coverage reports in the Actions tab of the GitHub repository.
+
 ## Future Development
 - Card recognition from images
 - Mobile application integration
