@@ -44,7 +44,7 @@ The current implementation uses a **Breadth-First Search (BFS)** over deck state
 
 1. **State Representation**: Each state is a tuple representing the current order of all cards in hand
    - **Note**: The current implementation assumes all cards are picked up after each iteration
-   - The new action model allows piles to persist on the table, which would require a more complex state representation: `(hand_cards, pile1_cards, pile2_cards)`
+   - The new action model allows at most one pile to persist on the table, which would require an extended state representation: `(hand_cards, table_pile_cards, which_pile)` where `which_pile` indicates whether it's pile 1 or pile 2 (or None if no pile on table)
 
 2. **Configuration Space**: For 2 piles, we have 4 configurations:
    - (T, T): Both piles with top placement
@@ -163,10 +163,10 @@ The current implementation provides optimal solutions **within its constraints**
 3. **Persistent piles**: Modeling cards that remain on the table and accumulate cards in subsequent iterations
 
 Implementing these enhancements would require:
-- Expanding the state representation from `(cards_in_hand)` to `(cards_in_hand, pile1_cards, pile2_cards)`
+- Expanding the state representation from `(cards_in_hand)` to `(cards_in_hand, table_pile_cards, which_pile)` where at most one pile persists on the table
 - Modifying the BFS to explore different distribution patterns (not just round-robin)
-- Adding pickup strategy as a dimension in the search space
-- Handling the complexity of dealing cards onto piles that already contain cards from previous iterations
+- Adding pickup strategy as a dimension in the search space (4 options: P1 only, P2 only, both in either order)
+- Handling the complexity of dealing cards onto a pile that already contains cards from a previous iteration
 
 The trade-off is between optimality and computational complexity. The current implementation favors tractability and reliably produces good (though not necessarily globally optimal) solutions for 13-card hands.
 
@@ -179,9 +179,10 @@ Possible improvements to explore:
 To fully support the new action model described in this document:
 
 1. **Enhanced State Representation**
-   - Change from `tuple[int, ...]` to `(hand: tuple, pile1: tuple, pile2: tuple)`
+   - Change from `tuple[int, ...]` to `(hand: tuple, table_pile: tuple, pile_id: int | None)`
+   - Note: At most one pile persists on the table between iterations (never both)
    - Update BFS to handle this extended state space
-   - Modify goal condition to check if all cards (hand + piles) are sorted
+   - Modify goal condition to check if all cards are sorted (considering hand + any pile on table)
 
 2. **Flexible Distribution Search**
    - Implement heuristic-guided distribution (e.g., greedy based on sortedness)
@@ -193,10 +194,10 @@ To fully support the new action model described in this document:
    - Explore all 4 pickup strategies at each BFS level
    - Model the effect of leaving piles on the table
 
-4. **Dealing onto Existing Piles**
-   - Handle case where piles already have cards from previous iteration
-   - Update T/B placement logic to work with non-empty piles
-   - Maintain proper ordering as cards accumulate
+4. **Dealing onto Existing Pile**
+   - Handle case where one pile already has cards from previous iteration
+   - Update T/B placement logic to work with a non-empty starting pile
+   - Maintain proper ordering as cards accumulate on the persisting pile
 
 ### Medium Priority: Performance Optimization
 
