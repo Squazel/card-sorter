@@ -32,11 +32,24 @@ class PassPlan:
 class SortResult:
     def get_standard_steps(self, num_cards: int) -> List[List[str]]:
         """
-        Returns a list of lists, each sublist is a pass, each element is '<pile>,<T/B>' for each card in input order.
+        Returns a list of lists, each sublist is a pass, each element is '<pile><T/B>' for each card in input order.
+        Uses actual moves from the plan, not round-robin assumptions.
         """
         steps = []
         for pass_idx, plan in enumerate(self.plans):
-            row = [f"{(idx % len(plan.config))+1}{plan.config[(idx % len(plan.config))]}" for idx in range(num_cards)]
+            row = []
+            for move in plan.moves:
+                if move.where == "L":
+                    row.append("L")
+                elif "-" in move.where:
+                    # Format: "P1-T" -> "1T", "P2-B" -> "2B"
+                    pile_num, placement = move.where.split("-")
+                    pile_digit = pile_num[1:]  # Remove 'P' prefix
+                    row.append(f"{pile_digit}{placement}")
+                else:
+                    # Format: "P1" -> "1", "P2" -> "2" (first card to pile, no T/B)
+                    pile_digit = move.where[1:]  # Remove 'P' prefix
+                    row.append(pile_digit)
             steps.append(row)
         return steps
     """Complete result of the sorting algorithm."""
