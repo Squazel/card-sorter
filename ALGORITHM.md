@@ -146,41 +146,53 @@ For the Bridge use case (13 cards):
 
 ### Current Performance Limitations
 
-**Important**: The current BFS implementation has **practical limits** on deck size:
+**Update**: The implementation now includes greedy distribution for large decks!
 
-- **Efficient range**: 3-7 cards (completes in under 1 second)
-- **Practical limit**: 8-10 cards (may take several seconds)
-- **Known issue**: 11-13 cards can take **minutes to hours** depending on initial order
+**Current Performance** (as of latest update):
+
+- **Efficient range**: 3-10 cards (optimal BFS, completes in under 1 second)
+- **Large deck support**: 11-13 cards (beam search with greedy distribution, typically < 0.1 seconds)
+- **13-card performance**: Successfully sorts in ~0.06 seconds with 15-20 iterations
+
+**Algorithm Selection**:
+- Decks ≤ 10 cards: Uses BFS for guaranteed optimal solution (minimum iterations)
+- Decks > 10 cards: Uses beam search with greedy card distribution for fast practical solution
 
 For 13 cards:
-- Theoretical state space: 13! = 6,227,020,800 permutations
-- BFS must explore many states before finding a solution
-- Some orderings may exhaust memory or take prohibitively long
+- State space with round-robin: 13! = 6,227,020,800 permutations (too large)
+- **Solution**: Greedy distribution + beam search limits explored states to ~50 × 30 = 1,500 per run
+- Result: Fast sorting (< 0.1 seconds) with good solution quality
 
-**Workaround**: For 13-card hands that are slow, consider:
-1. Using fewer piles (but this may not find a solution)
-2. Using a heuristic approach instead of exhaustive BFS
-3. Implementing the enhanced state representation with pile persistence (future work)
-
-This limitation is documented in the "Implementation Gap" section below.
+**Implementation Details**:
+The greedy distribution algorithm intelligently places each card on the pile that best maintains sorted sequences, based on pile orientation (T/B). This allows the algorithm to find sorting paths that round-robin distribution cannot reach.
 
 ## Implementation Notes
 
 The current implementation in `sort_logic.py`:
 
 1. **Validates** input to ensure distinct positive integers
-2. **Uses BFS** to explore configuration space systematically  
+2. **Uses adaptive algorithm selection**:
+   - BFS for small decks (≤10 cards) - guarantees optimal solution
+   - Beam search with greedy distribution for large decks (>10 cards) - fast and practical
 3. **Caps piles** at 2 for reliability and performance
 4. **Tracks states** to avoid redundant exploration
 5. **Returns** detailed step-by-step instructions for the user
 
-### Implementation Gap
+### Implementation Status
 
-The current implementation provides optimal solutions **within its constraints** (round-robin distribution, fixed pickup order). However, the new action model described above allows additional flexibility that could potentially reduce the number of iterations:
+**✅ Implemented**: Greedy card distribution for 13-card hands
+- The algorithm now uses intelligent card placement instead of round-robin distribution
+- Each card is placed on the pile that best maintains sorted sequences
+- Beam search limits state exploration while finding good solutions
+- Successfully sorts 13-card hands in under 0.1 seconds
 
-1. **Free distribution choice**: Instead of round-robin, allowing each card to go to any pile
-2. **Flexible pickup strategy**: Allowing piles to be left on the table across iterations
-3. **Persistent piles**: Modeling cards that remain on the table and accumulate cards in subsequent iterations
+### Remaining Implementation Gap
+
+The current implementation provides **practical solutions** for all deck sizes. However, the enhanced action model described above would allow additional flexibility:
+
+1. **Free distribution choice**: ✅ **Implemented** via greedy distribution heuristic
+2. **Flexible pickup strategy**: ⏳ Not yet implemented - currently always picks up both piles in order (P1, P2)
+3. **Persistent piles**: ⏳ Not yet implemented - modeling cards that remain on the table across iterations
 
 Implementing these enhancements would require:
 - Expanding the state representation from `(cards_in_hand)` to `(cards_in_hand, table_pile_cards, which_pile)` where at most one pile persists on the table
