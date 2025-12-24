@@ -17,34 +17,38 @@ Find: The minimum number of iterations needed to sort the cards into ascending o
 ## User Actions Model
 
 ### Dealing Phase
-1. User starts with all 13 cards face-down in their hand
+1. User starts with cards face-down in their hand
 2. For each card (from top of hand), the system instructs which pile to deal to:
-   - First card to each pile: must go on top (pile is empty)
-   - Subsequent cards: can be placed on Top (T) or Bottom (B) of the pile
+   - First card to each pile: notation shows just pile number (e.g., "P1")
+   - Subsequent cards: can be placed on Top (T) or Bottom (B) of the pile (e.g., "P1-T" or "P1-B")
 
 ### Pickup Phase
-After all cards are dealt, the system instructs which pile(s) to pick up:
+After all cards from the hand are dealt, the system instructs which pile(s) to pick up:
+
+**Currently Implemented**:
+- Both piles are always picked up in order (Pile 1, then Pile 2)
+
+**Future Enhancement** (not yet implemented):
 - **Option 1**: Pick up Pile 1 only (Pile 2 remains on table)
 - **Option 2**: Pick up Pile 2 only (Pile 1 remains on table)
 - **Option 3**: Pick up both piles, with Pile 1 on top of Pile 2
 - **Option 4**: Pick up both piles, with Pile 2 on top of Pile 1
+- Any pile left on the table would remain in place for the next pass
 
-Any pile left on the table remains in place for the next iteration.
-
-### Iteration
-The process repeats until all cards are sorted.
+### Pass (Iteration)
+One complete cycle of dealing all cards from hand and picking up piles is called a "pass". The process repeats until all cards are sorted.
 
 ## Algorithmic Approach
 
 ### Current Implementation: Configuration-Based BFS
 
-The current implementation uses a **Breadth-First Search (BFS)** over deck states with a fixed distribution strategy:
+The current implementation uses a **Breadth-First Search (BFS)** over deck states with intelligent greedy distribution:
 
 #### Key Components
 
 1. **State Representation**: Each state is a tuple representing the current order of all cards in hand
-   - **Note**: The current implementation assumes all cards are picked up after each iteration
-   - The new action model allows at most one pile to persist on the table, which would require an extended state representation: `(hand_cards, table_pile_cards, which_pile)` where `which_pile` indicates whether it's pile 1 or pile 2 (or None if no pile on table)
+   - **Current limitation**: All cards are in hand after each pass (no pile persistence)
+   - **Future enhancement**: Would require extended state: `(hand_cards, table_pile_cards, which_pile)`
 
 2. **Configuration Space**: For 2 piles, we have 4 configurations:
    - (T, T): Both piles with top placement
@@ -52,19 +56,20 @@ The current implementation uses a **Breadth-First Search (BFS)** over deck state
    - (B, T): Pile 1 bottom, Pile 2 top
    - (B, B): Both piles with bottom placement
 
-3. **Distribution Strategy**: Cards are distributed round-robin:
-   - Card at index i goes to pile (i mod num_piles)
-   - This is deterministic and reduces the search space
-   - **Limitation**: The new action model allows free choice of which pile each card goes to, which could potentially lead to better solutions
+3. **Distribution Strategy**: Cards are distributed using greedy placement
+   - Each card is placed on the pile that best maintains sorted sequences
+   - For Bottom (B): prefer pile where card maintains increasing order
+   - For Top (T): prefer pile where card maintains decreasing order (reversed on pickup)
+   - This is more flexible than round-robin and enables better solutions
 
-4. **Pickup Strategy**: Piles are always picked up in fixed order (Pile 1, then Pile 2)
-   - **Limitation**: The new action model allows picking up only P1, only P2, both (P1+P2), or both (P2+P1)
-   - This flexibility could reduce the number of iterations needed
+4. **Pickup Strategy**: Currently, piles are always picked up in fixed order (Pile 1, then Pile 2)
+   - **Future enhancement**: Allow picking up P1 only, P2 only, P1+P2, or P2+P1
+   - **Future enhancement**: Allow leaving one pile on table between passes
 
 #### BFS Guarantees
 
 The BFS approach guarantees:
-- **Optimality**: First solution found has minimum number of iterations (for the given distribution strategy)
+- **Optimality**: First solution found has minimum number of passes (for the given distribution strategy)
 - **Completeness**: Will find a solution if one exists
 - **Correctness**: Always produces sorted output when possible
 
@@ -142,7 +147,7 @@ For the Bridge use case (13 cards):
 
 - **Target**: Find solution in < 1 second on typical hardware
 - **Memory**: Limit visited states to reasonable size (< 100MB)
-- **Iterations**: Prefer solutions with ≤ 5 iterations for user experience
+- **Passes**: Prefer solutions with ≤ 5 passes for user experience
 
 ### Current Performance Limitations
 
@@ -152,10 +157,10 @@ For the Bridge use case (13 cards):
 
 - **Efficient range**: 3-10 cards (optimal BFS, completes in under 1 second)
 - **Large deck support**: 11-13 cards (beam search with greedy distribution, typically < 0.1 seconds)
-- **13-card performance**: Successfully sorts in ~0.06 seconds with 15-20 iterations
+- **13-card performance**: Successfully sorts in ~0.06 seconds with 15-20 passes
 
 **Algorithm Selection**:
-- Decks ≤ 10 cards: Uses BFS for guaranteed optimal solution (minimum iterations)
+- Decks ≤ 10 cards: Uses BFS for guaranteed optimal solution (minimum passes)
 - Decks > 10 cards: Uses beam search with greedy card distribution for fast practical solution
 
 For 13 cards:

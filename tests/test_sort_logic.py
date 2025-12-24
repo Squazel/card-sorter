@@ -32,8 +32,8 @@ class TestSortLogic(unittest.TestCase):
         try:
             result = optimal_sort(deck, 2, True)
             # Verify that history, plans, and explanations are consistent
-            self.assertEqual(len(result.plans), result.iterations)
-            self.assertEqual(len(result.history), result.iterations + 1)  # History includes initial state
+            self.assertEqual(len(result.plans), result.passes)
+            self.assertEqual(len(result.history), result.passes + 1)  # History includes initial state
             self.assertEqual(result.history[0], deck)
             self.assertTrue(is_sorted(result.history[-1]))
         except ValueError as e:
@@ -96,13 +96,13 @@ class TestSortLogic(unittest.TestCase):
         # Already sorted
         deck = [1, 2, 3, 4]
         result = optimal_sort(deck, 2, True)
-        self.assertEqual(result.iterations, 0)
+        self.assertEqual(result.passes, 0)
         
         # Reverse sorted - greedy distribution can sort in 1 iteration
         deck = [4, 3, 2, 1]
         result = optimal_sort(deck, 2, True)
-        # Greedy distribution is more efficient than round-robin, may find solution in fewer iterations
-        self.assertLessEqual(result.iterations, 2)  # At most 2 iterations
+        # Greedy distribution is more efficient than round-robin, may find solution in fewer passes
+        self.assertLessEqual(result.passes, 2)  # At most 2 passes
         self.assertEqual(result.history[-1], [1, 2, 3, 4])
 
     def test_optimal_sort_different_pile_counts(self):
@@ -119,8 +119,8 @@ class TestSortLogic(unittest.TestCase):
             result2 = optimal_sort(deck, num_piles=2, allow_bottom=True)
             self.assertTrue(is_sorted(result2.history[-1]))
             
-            # More piles should generally require fewer or equal iterations
-            self.assertLessEqual(result2.iterations, result1.iterations)
+            # More piles should generally require fewer or equal passes
+            self.assertLessEqual(result2.passes, result1.passes)
         except ValueError as e:
             # 1 pile may not be able to sort all decks
             result2 = optimal_sort(deck, 2, True)
@@ -139,8 +139,8 @@ class TestSortLogic(unittest.TestCase):
             result_with_bottom = optimal_sort(deck, num_piles=2, allow_bottom=True)
             self.assertTrue(is_sorted(result_with_bottom.history[-1]))
             
-            # Bottom placement should generally allow equal or fewer iterations
-            self.assertLessEqual(result_with_bottom.iterations, result_no_bottom.iterations)
+            # Bottom placement should generally allow equal or fewer passes
+            self.assertLessEqual(result_with_bottom.passes, result_no_bottom.passes)
         except ValueError as e:
             self.skipTest(f"Skipping test due to algorithm limitation: {e}")
 
@@ -161,8 +161,8 @@ class TestSortLogic(unittest.TestCase):
         try:
             result = optimal_sort(deck, 2, True)
             # Verify that history, plans, and explanations are consistent
-            self.assertEqual(len(result.plans), result.iterations)
-            self.assertEqual(len(result.history), result.iterations + 1)  # History includes initial state
+            self.assertEqual(len(result.plans), result.passes)
+            self.assertEqual(len(result.history), result.passes + 1)  # History includes initial state
             self.assertEqual(result.history[0], deck)
             self.assertTrue(is_sorted(result.history[-1]))
         except ValueError as e:
@@ -235,15 +235,15 @@ class TestSortLogic(unittest.TestCase):
         """Test edge cases for the sorting algorithms."""
         # Empty deck
         result = optimal_sort([], 2, True)
-        self.assertEqual(result.iterations, 0)
+        self.assertEqual(result.passes, 0)
         
         # Single card deck
         result = optimal_sort([42], 2, True)
-        self.assertEqual(result.iterations, 0)
+        self.assertEqual(result.passes, 0)
         
         # Already sorted deck
         result = optimal_sort([1, 2, 3, 4, 5], 2, True)
-        self.assertEqual(result.iterations, 0)
+        self.assertEqual(result.passes, 0)
         
         # Simple deck that should be sortable
         try:
@@ -267,19 +267,19 @@ class TestOptimalityVerification(unittest.TestCase):
         # Case 1: [3,1,2] with 2 piles should take 2 passes (verified manually)
         deck = [3, 1, 2]
         result = optimal_sort(deck, num_piles=2, allow_bottom=True)
-        self.assertEqual(result.iterations, 2, f"Expected 2 passes for {deck}, got {result.iterations}")
+        self.assertEqual(result.passes, 2, f"Expected 2 passes for {deck}, got {result.passes}")
         self.assertEqual(result.history[-1], [1, 2, 3])
 
         # Case 2: [4,3,2,1] with 2 piles should take 2 passes (verified manually)
         deck = [4, 3, 2, 1]
         result = optimal_sort(deck, num_piles=2, allow_bottom=True)
-        self.assertEqual(result.iterations, 2, f"Expected 2 passes for {deck}, got {result.iterations}")
+        self.assertEqual(result.passes, 2, f"Expected 2 passes for {deck}, got {result.passes}")
         self.assertEqual(result.history[-1], [1, 2, 3, 4])
 
         # Case 3: Already sorted should take 0 passes
         deck = [1, 2, 3, 4, 5]
         result = optimal_sort(deck, num_piles=2, allow_bottom=True)
-        self.assertEqual(result.iterations, 0, f"Expected 0 passes for sorted deck, got {result.iterations}")
+        self.assertEqual(result.passes, 0, f"Expected 0 passes for sorted deck, got {result.passes}")
 
     def test_performance_scaling(self):
         """Test how the algorithm scales with deck size."""
@@ -292,8 +292,8 @@ class TestOptimalityVerification(unittest.TestCase):
             try:
                 result = optimal_sort(deck, num_piles=2, allow_bottom=True)
                 elapsed = time.time() - start
-                results.append((size, result.iterations, elapsed))
-                print(f"Size {size}: {result.iterations} passes in {elapsed:.3f}s")
+                results.append((size, result.passes, elapsed))
+                print(f"Size {size}: {result.passes} passes in {elapsed:.3f}s")
                 
                 # Verify it's sorted
                 self.assertTrue(is_sorted(result.history[-1]))
@@ -320,7 +320,7 @@ class TestOptimalityVerification(unittest.TestCase):
         if can_use_1pile and result_1pile:
             self.assertTrue(is_sorted(result_1pile.history[-1]))
             # More piles should not require more passes
-            self.assertLessEqual(result_2pile.iterations, result_1pile.iterations)
+            self.assertLessEqual(result_2pile.passes, result_1pile.passes)
 
     def test_bottom_placement_impact(self):
         """Test that bottom placement generally helps or equals performance."""
@@ -330,7 +330,7 @@ class TestOptimalityVerification(unittest.TestCase):
         result_with_bottom = optimal_sort(deck, num_piles=2, allow_bottom=True)
         
         # Bottom placement should not require more passes
-        self.assertLessEqual(result_with_bottom.iterations, result_no_bottom.iterations)
+        self.assertLessEqual(result_with_bottom.passes, result_no_bottom.passes)
         
         # Both should produce sorted result
         self.assertTrue(is_sorted(result_no_bottom.history[-1]))
@@ -343,7 +343,7 @@ class TestOptimalityVerification(unittest.TestCase):
         def verify_optimality_brute_force(deck: List[int], max_piles: int = 2, allow_bottom: bool = True) -> bool:
             """Verify that no shorter sequence of passes can sort the deck."""
             result = optimal_sort(deck, max_piles, allow_bottom)
-            optimal_passes = result.iterations
+            optimal_passes = result.passes
             
             if optimal_passes == 0:
                 return True  # Already sorted, trivially optimal

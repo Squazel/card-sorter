@@ -53,7 +53,7 @@ class SortResult:
             steps.append(row)
         return steps
     """Complete result of the sorting algorithm."""
-    iterations: int
+    passes: int  # Number of passes (dealing + pickup cycles) needed to sort
     plans: List[PassPlan]
     explanations: List[str]
     history: List[List[int]]
@@ -225,18 +225,18 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
         allow_bottom: Whether bottom placement is allowed
         
     Returns:
-        SortResult object containing plans, iterations, explanations, and history
+        SortResult object containing plans, passes, explanations, and history
     """
     # Validate input
     validate_input(deck)
     
     # If deck is empty or has only one card, it's already sorted
     if len(deck) <= 1:
-        return SortResult(iterations=0, plans=[], explanations=[], history=[deck[:]])
+        return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
     
     # If deck is already sorted, return immediately
     if is_sorted(deck):
-        return SortResult(iterations=0, plans=[], explanations=[], history=[deck[:]])
+        return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
     
     # Use BFS for small decks (optimal), beam search for large decks (fast)
     if len(deck) <= 10:
@@ -248,7 +248,7 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
 def _bfs_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult:
     """
     BFS-based optimal sorting for small decks (<=10 cards).
-    Guaranteed to find the solution with minimum iterations.
+    Guaranteed to find the solution with minimum passes.
     """
     start_tuple = tuple(deck)
     best_result = None
@@ -294,11 +294,11 @@ def _bfs_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult
                                         for j, c in enumerate(plan.config)])
                 explanations.append(f"Pass {i+1}: {num_piles} piles ({config_desc})")
 
-            # Update best result if this is the first solution or has fewer iterations
-            iterations = len(plans)
-            if best_result is None or iterations < best_result.iterations:
+            # Update best result if this is the first solution or has fewer passes
+            num_passes = len(plans)
+            if best_result is None or num_passes < best_result.passes:
                 best_result = SortResult(
-                    iterations=iterations,
+                    passes=num_passes,
                     plans=plans,
                     explanations=explanations,
                     history=history
@@ -355,7 +355,7 @@ def _beam_search_sort(deck: List[int], num_piles: int, allow_bottom: bool, beam_
                     explanations.append(f"Pass {i+1}: {num_piles} piles ({config_desc})")
                 
                 return SortResult(
-                    iterations=len(path),
+                    passes=len(path),
                     plans=path,
                     explanations=explanations,
                     history=history
@@ -394,14 +394,14 @@ def _beam_search_sort(deck: List[int], num_piles: int, allow_bottom: bool, beam_
             explanations.append(f"Pass {i+1}: {num_piles} piles ({config_desc})")
         
         return SortResult(
-            iterations=len(best_path),
+            passes=len(best_path),
             plans=best_path,
             explanations=explanations,
             history=history
         )
     
     # Fallback: return empty result
-    return SortResult(iterations=0, plans=[], explanations=[], history=[deck[:]])
+    return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
 # ---------- User-friendly output functions ----------
 def format_human_readable_plan(result: SortResult) -> List[str]:
     """
@@ -413,7 +413,7 @@ def format_human_readable_plan(result: SortResult) -> List[str]:
     Returns:
         List of strings with human-readable instructions
     """
-    if result.iterations == 0:
+    if result.passes == 0:
         return ["Cards are already in order. No sorting needed."]
     
     instructions = [f"Starting with cards: {result.history[0]}"]
@@ -480,11 +480,11 @@ def print_sort_solution(deck: List[int], num_piles: int, allow_bottom: bool, ver
             print(f"[VERBOSE] Starting sort: deck={deck}, num_piles={num_piles}, allow_bottom={allow_bottom}")
         result = optimal_sort(deck, num_piles, allow_bottom)
         if verbose:
-            print(f"[VERBOSE] SortResult: iterations={result.iterations}, history={result.history}")
+            print(f"[VERBOSE] SortResult: passes={result.passes}, history={result.history}")
         # Generate and print human-readable instructions
         instructions = format_human_readable_plan(result)
         print("\n".join(instructions))
-        print(f"\nSorted in {result.iterations} passes.")
+        print(f"\nSorted in {result.passes} passes.")
     except ValueError as e:
         print(f"Error: {e}")
 
@@ -505,11 +505,11 @@ def sort_cards(deck: List[int], num_piles: int, allow_bottom: bool, time_limit: 
         print(f"[VERBOSE] sort_cards called: deck={deck}, num_piles={num_piles}, allow_bottom={allow_bottom}")
     result = optimal_sort(deck, num_piles=num_piles, allow_bottom=allow_bottom)
     if verbose:
-        print(f"[VERBOSE] SortResult: iterations={result.iterations}, history={result.history}")
+        print(f"[VERBOSE] SortResult: passes={result.passes}, history={result.history}")
     expected_sorted = sorted(deck)
     if result.history and result.history[-1] != expected_sorted:
         return SortResult(
-            iterations=0,
+            passes=0,
             plans=[],
             explanations=["Solution produced but final state is not sorted; please adjust parameters."],
             history=[deck] + (result.history[-1:] if result.history else [])

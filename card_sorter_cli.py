@@ -135,7 +135,7 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
         allow_bottom: Whether to allow placement at bottom of piles
     
     Returns:
-        Tuple of (iterations, explanations)
+        Tuple of (passes, explanations)
     """
     # Extract just the values for sorting
     values = [value for _, value in cards_with_values]
@@ -148,7 +148,7 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
         
         # Validate the result
         if result.history and result.history[-1] == expected_sorted:
-            return result.iterations, result.explanations
+            return result.passes, result.explanations
         else:
             raise ValueError("Failed to produce a correctly sorted result")
         
@@ -197,12 +197,12 @@ def main():
 
     print("\nRunning sorting analysis for different configurations...")
     print("-" * 60)
-    print(f"| {'Piles':<5} | {'Bottom':<8} | {'Iterations':<10} |")
+    print(f"| {'Piles':<5} | {'Bottom':<8} | {'Passes':<10} |")
     print("-" * 60)
 
     # Loop through different configurations
     best_config = None
-    min_iterations = float('inf')
+    min_passes = float('inf')
     best_explanations = []
 
     for piles in range(1, max_piles + 1):
@@ -214,16 +214,16 @@ def main():
                 continue  # Skip invalid configuration
 
             # Run the sorting algorithm
-            iterations, explanations = run_sorting_algorithm(original_card_values, piles, allow_bottom)
+            num_passes, explanations = run_sorting_algorithm(original_card_values, piles, allow_bottom)
 
-            if iterations > 0 and iterations < min_iterations:
-                min_iterations = iterations
+            if num_passes > 0 and num_passes < min_passes:
+                min_passes = num_passes
                 best_config = (piles, allow_bottom)
                 best_explanations = explanations
 
             bottom_str = "Yes" if allow_bottom else "No"
-            iter_str = str(iterations) if iterations >= 0 else "Error"
-            print(f"| {piles:<5} | {bottom_str:<8} | {iter_str:<10} |")
+            passes_str = str(num_passes) if num_passes >= 0 else "Error"
+            print(f"| {piles:<5} | {bottom_str:<8} | {passes_str:<10} |")
 
     print("-" * 60)
 
@@ -231,7 +231,7 @@ def main():
     if best_config:
         piles, allow_bottom = best_config
         print(f"\nBest configuration: {piles} pile(s), bottom placement {'allowed' if allow_bottom else 'not allowed'}")
-        print(f"Minimum iterations required: {min_iterations}")
+        print(f"Minimum passes required: {min_passes}")
         
         # Get detailed instructions
         values = [value for _, value in original_card_values]
