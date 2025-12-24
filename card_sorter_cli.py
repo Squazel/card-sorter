@@ -9,7 +9,7 @@ import sys
 from typing import List, Dict, Any, Tuple
 from input_helpers import CardInputHelper
 from card_ordering_rules import get_sort_mapping, GAME_DEFINITIONS
-from sort_logic import print_sort_solution, sort_cards
+from sort_logic import print_sort_solution, sort_cards, format_human_readable_plan
 
 
 def get_game_selection() -> str:
@@ -115,7 +115,9 @@ def get_bottom_placement():
         bool: True if placement at bottom is allowed, False otherwise
     """
     while True:
-        bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: no]: ")
+        bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: yes]: ")
+        if bottom_placement_input.strip() == "":
+            return True
         allow_bottom, error = CardInputHelper.validate_bottom_placement(bottom_placement_input)
         if not error:
             return allow_bottom
@@ -133,7 +135,7 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
         allow_bottom: Whether to allow placement at bottom of piles
     
     Returns:
-        Tuple of (iterations, explanations)
+        Tuple of (passes, explanations)
     """
     # Extract just the values for sorting
     values = [value for _, value in cards_with_values]
@@ -146,7 +148,7 @@ def run_sorting_algorithm(cards_with_values: List[Tuple[str, int]], piles: int, 
         
         # Validate the result
         if result.history and result.history[-1] == expected_sorted:
-            return result.iterations, result.explanations
+            return result.passes, result.explanations
         else:
             raise ValueError("Failed to produce a correctly sorted result")
         
@@ -162,13 +164,14 @@ def main():
     print("Welcome to Card Sorter!")
     print("------------------------")
     
-    # Get card input from user
-    card_input = input("Enter cards as comma-separated values (e.g., 2h,3s,4d,Th,...): ")
-    cards = parse_cards(card_input)
-    
-    if not cards:
-        print("No valid cards provided. Exiting.")
-        return
+    # Get card input from user, re-prompting if duplicates detected
+    cards = []
+    while not cards:
+        card_input = input("Enter cards as comma-separated values (e.g., 2h,3s,4d,Th,...): ")
+        cards = parse_cards(card_input)
+        
+        if not cards:
+            print("No valid cards provided. Please try again.\n")
     
     # Get game selection using simple console menu
     game = get_game_selection()
@@ -194,12 +197,12 @@ def main():
 
     print("\nRunning sorting analysis for different configurations...")
     print("-" * 60)
-    print(f"| {'Piles':<5} | {'Bottom':<8} | {'Iterations':<10} |")
+    print(f"| {'Piles':<5} | {'Bottom':<8} | {'Passes':<10} |")
     print("-" * 60)
 
     # Loop through different configurations
     best_config = None
-    min_iterations = float('inf')
+    min_passes = float('inf')
     best_explanations = []
 
     for piles in range(1, max_piles + 1):
@@ -211,16 +214,16 @@ def main():
                 continue  # Skip invalid configuration
 
             # Run the sorting algorithm
-            iterations, explanations = run_sorting_algorithm(original_card_values, piles, allow_bottom)
+            num_passes, explanations = run_sorting_algorithm(original_card_values, piles, allow_bottom)
 
-            if iterations > 0 and iterations < min_iterations:
-                min_iterations = iterations
+            if num_passes > 0 and num_passes < min_passes:
+                min_passes = num_passes
                 best_config = (piles, allow_bottom)
                 best_explanations = explanations
 
             bottom_str = "Yes" if allow_bottom else "No"
-            iter_str = str(iterations) if iterations >= 0 else "Error"
-            print(f"| {piles:<5} | {bottom_str:<8} | {iter_str:<10} |")
+            passes_str = str(num_passes) if num_passes >= 0 else "Error"
+            print(f"| {piles:<5} | {bottom_str:<8} | {passes_str:<10} |")
 
     print("-" * 60)
 
@@ -228,13 +231,27 @@ def main():
     if best_config:
         piles, allow_bottom = best_config
         print(f"\nBest configuration: {piles} pile(s), bottom placement {'allowed' if allow_bottom else 'not allowed'}")
-        print(f"Minimum iterations required: {min_iterations}")
-        print("\nSorting steps:")
-        print("Pass | " + " | ".join([f"Card {i+1}" for i in range(len(cards))]))
-        print("-" * (7 + len(cards) * 12))
+        print(f"Minimum passes required: {min_passes}")
+        
+        # Get detailed instructions
         values = [value for _, value in original_card_values]
         try:
             result = sort_cards(values, num_piles=piles, allow_bottom=allow_bottom)
+            
+            # Show detailed instructions including pickup order
+            print("\n" + "="*60)
+            print("DETAILED SORTING INSTRUCTIONS")
+            print("="*60)
+            instructions = format_human_readable_plan(result)
+            for line in instructions:
+                print(line)
+            
+            # Also show compact table view
+            print("\n" + "="*60)
+            print("COMPACT VIEW - Card Placements")
+            print("="*60)
+            print("Pass | " + " | ".join([f"Card {i+1}" for i in range(len(cards))]))
+            print("-" * (7 + len(cards) * 12))
             steps = result.get_standard_steps(len(cards))
             for pass_num, row in enumerate(steps, 1):
                 print(f"{pass_num:<4} | " + " | ".join(row))
@@ -243,8 +260,13 @@ def main():
     else:
         print("\nNo valid sorting configuration found.")
 
-    print("\nNote: 'T' means cards are placed on top (reverse order when picked up)")
-    print("      'B' means cards are placed on bottom (preserve order when picked up)")
+    print("\n" + "="*60)
+    print("LEGEND")
+    print("="*60)
+    print("'T' means cards are placed on top (reverse order when picked up)")
+    print("'B' means cards are placed on bottom (preserve order when picked up)")
+    print("First card to empty pile shows just pile number (e.g., 'P1')")
+    print("Subsequent cards show pile and placement (e.g., 'P1-T' or 'P1-B')")
 
 
 if __name__ == "__main__":
