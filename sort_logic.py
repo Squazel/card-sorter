@@ -349,7 +349,7 @@ def _bfs_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult
 
         # Try each configuration
         for config in configs:
-            plan = one_pass(current, config)
+            plan = one_pass_greedy_distribution(current, config)
             next_tuple = tuple(plan.next_deck)
 
             if next_tuple not in visited:

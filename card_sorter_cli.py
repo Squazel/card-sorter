@@ -9,7 +9,7 @@ import sys
 from typing import List, Dict, Any, Tuple
 from input_helpers import CardInputHelper
 from card_ordering_rules import get_sort_mapping, GAME_DEFINITIONS
-from sort_logic import print_sort_solution, sort_cards
+from sort_logic import print_sort_solution, sort_cards, format_human_readable_plan
 
 
 def get_game_selection() -> str:
@@ -232,12 +232,26 @@ def main():
         piles, allow_bottom = best_config
         print(f"\nBest configuration: {piles} pile(s), bottom placement {'allowed' if allow_bottom else 'not allowed'}")
         print(f"Minimum iterations required: {min_iterations}")
-        print("\nSorting steps:")
-        print("Pass | " + " | ".join([f"Card {i+1}" for i in range(len(cards))]))
-        print("-" * (7 + len(cards) * 12))
+        
+        # Get detailed instructions
         values = [value for _, value in original_card_values]
         try:
             result = sort_cards(values, num_piles=piles, allow_bottom=allow_bottom)
+            
+            # Show detailed instructions including pickup order
+            print("\n" + "="*60)
+            print("DETAILED SORTING INSTRUCTIONS")
+            print("="*60)
+            instructions = format_human_readable_plan(result)
+            for line in instructions:
+                print(line)
+            
+            # Also show compact table view
+            print("\n" + "="*60)
+            print("COMPACT VIEW - Card Placements")
+            print("="*60)
+            print("Pass | " + " | ".join([f"Card {i+1}" for i in range(len(cards))]))
+            print("-" * (7 + len(cards) * 12))
             steps = result.get_standard_steps(len(cards))
             for pass_num, row in enumerate(steps, 1):
                 print(f"{pass_num:<4} | " + " | ".join(row))
@@ -246,8 +260,13 @@ def main():
     else:
         print("\nNo valid sorting configuration found.")
 
-    print("\nNote: 'T' means cards are placed on top (reverse order when picked up)")
-    print("      'B' means cards are placed on bottom (preserve order when picked up)")
+    print("\n" + "="*60)
+    print("LEGEND")
+    print("="*60)
+    print("'T' means cards are placed on top (reverse order when picked up)")
+    print("'B' means cards are placed on bottom (preserve order when picked up)")
+    print("First card to empty pile shows just pile number (e.g., 'P1')")
+    print("Subsequent cards show pile and placement (e.g., 'P1-T' or 'P1-B')")
 
 
 if __name__ == "__main__":
