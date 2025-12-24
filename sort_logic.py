@@ -127,6 +127,11 @@ def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
         
     Returns:
         A PassPlan object with the results of this pass
+        
+    TODO: To support the new action model (see ALGORITHM.md):
+    - Add pickup_strategy parameter to specify which piles to pick up
+    - Modify to handle dealing onto piles that already have cards
+    - Update state representation to track cards in hand vs on table
     """
     assert all(c in ('T','B') for c in config)
     num_piles = len(config)
@@ -139,7 +144,9 @@ def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
 
     # Process each card in the deck
     for idx, x in enumerate(deck):
-        # Always deal into piles in round-robin fashion
+        # TODO: Explore non-round-robin distributions for better solutions
+        # Currently: Always deal into piles in round-robin fashion
+        # New model: Allow free choice of pile for each card
         j = idx % num_piles
         piles[j].append(x)
         last_vals[j] = x
@@ -151,7 +158,8 @@ def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
         for j in range(num_piles)
     }
     next_deck = leftovers[:]
-    # Add piles in increasing order (lowest number first)
+    # TODO: Support flexible pickup strategies (P1 only, P2 only, P1+P2, P2+P1)
+    # Currently: Add piles in increasing order (lowest number first)
     for j in range(num_piles):
         pile_key = f"P{j+1}-{config[j]}"
         next_deck.extend(piles_for_pickup[pile_key])
@@ -171,6 +179,12 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
         
     Returns:
         SortResult object containing plans, iterations, explanations, and history
+        
+    TODO: To fully support the new action model (see ALGORITHM.md):
+    - Change state representation from tuple[int, ...] to (hand, pile1, pile2)
+    - Explore different pickup strategies: 'P1', 'P2', 'P1+P2', 'P2+P1'
+    - Consider non-round-robin distributions (potentially using heuristics)
+    - Handle piles persisting across iterations
     """
     # Validate input
     validate_input(deck)

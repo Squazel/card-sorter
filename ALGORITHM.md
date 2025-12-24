@@ -42,7 +42,10 @@ The current implementation uses a **Breadth-First Search (BFS)** over deck state
 
 #### Key Components
 
-1. **State Representation**: Each state is a tuple representing the current order of cards
+1. **State Representation**: Each state is a tuple representing the current order of all cards in hand
+   - **Note**: The current implementation assumes all cards are picked up after each iteration
+   - The new action model allows piles to persist on the table, which would require a more complex state representation: `(hand_cards, pile1_cards, pile2_cards)`
+
 2. **Configuration Space**: For 2 piles, we have 4 configurations:
    - (T, T): Both piles with top placement
    - (T, B): Pile 1 top, Pile 2 bottom
@@ -52,8 +55,11 @@ The current implementation uses a **Breadth-First Search (BFS)** over deck state
 3. **Distribution Strategy**: Cards are distributed round-robin:
    - Card at index i goes to pile (i mod num_piles)
    - This is deterministic and reduces the search space
+   - **Limitation**: The new action model allows free choice of which pile each card goes to, which could potentially lead to better solutions
 
-4. **Pickup Strategy**: Piles are picked up in fixed order (Pile 1, then Pile 2)
+4. **Pickup Strategy**: Piles are always picked up in fixed order (Pile 1, then Pile 2)
+   - **Limitation**: The new action model allows picking up only P1, only P2, both (P1+P2), or both (P2+P1)
+   - This flexibility could reduce the number of iterations needed
 
 #### BFS Guarantees
 
@@ -148,15 +154,61 @@ The current implementation in `sort_logic.py`:
 4. **Tracks states** to avoid redundant exploration
 5. **Returns** detailed step-by-step instructions for the user
 
+### Implementation Gap
+
+The current implementation provides optimal solutions **within its constraints** (round-robin distribution, fixed pickup order). However, the new action model described above allows additional flexibility that could potentially reduce the number of iterations:
+
+1. **Free distribution choice**: Instead of round-robin, allowing each card to go to any pile
+2. **Flexible pickup strategy**: Allowing piles to be left on the table across iterations
+3. **Persistent piles**: Modeling cards that remain on the table and accumulate cards in subsequent iterations
+
+Implementing these enhancements would require:
+- Expanding the state representation from `(cards_in_hand)` to `(cards_in_hand, pile1_cards, pile2_cards)`
+- Modifying the BFS to explore different distribution patterns (not just round-robin)
+- Adding pickup strategy as a dimension in the search space
+- Handling the complexity of dealing cards onto piles that already contain cards from previous iterations
+
+The trade-off is between optimality and computational complexity. The current implementation favors tractability and reliably produces good (though not necessarily globally optimal) solutions for 13-card hands.
+
 ## Future Enhancements
 
 Possible improvements to explore:
 
-1. **Full Distribution Search**: Implement A* or beam search to explore non-round-robin distributions
-2. **Pile Persistence**: Properly model piles left on table between iterations
-3. **Dynamic Programming**: Memoize subproblems for efficiency
-4. **Machine Learning**: Train models to predict good distributions for given initial orders
+### High Priority: Close Implementation Gap
+
+To fully support the new action model described in this document:
+
+1. **Enhanced State Representation**
+   - Change from `tuple[int, ...]` to `(hand: tuple, pile1: tuple, pile2: tuple)`
+   - Update BFS to handle this extended state space
+   - Modify goal condition to check if all cards (hand + piles) are sorted
+
+2. **Flexible Distribution Search**
+   - Implement heuristic-guided distribution (e.g., greedy based on sortedness)
+   - Use A* instead of BFS with a good heuristic function
+   - Consider beam search to limit explored distributions to top-k candidates
+
+3. **Pickup Strategy Exploration**
+   - Add pickup strategy as a parameter: `'P1'`, `'P2'`, `'P1+P2'`, or `'P2+P1'`
+   - Explore all 4 pickup strategies at each BFS level
+   - Model the effect of leaving piles on the table
+
+4. **Dealing onto Existing Piles**
+   - Handle case where piles already have cards from previous iteration
+   - Update T/B placement logic to work with non-empty piles
+   - Maintain proper ordering as cards accumulate
+
+### Medium Priority: Performance Optimization
+
 5. **Parallel Search**: Use multiple cores to explore configuration space faster
+6. **Dynamic Programming**: Memoize subproblems for efficiency
+7. **Pruning Strategies**: Eliminate symmetric or dominated configurations early
+
+### Lower Priority: Advanced Techniques
+
+8. **Machine Learning**: Train models to predict good distributions for given initial orders
+9. **Pattern Recognition**: Identify common sorting patterns and optimize for them
+10. **Adaptive Heuristics**: Learn from previous sorts to improve future performance
 
 ## References
 
