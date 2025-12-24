@@ -153,7 +153,7 @@ For the Bridge use case (13 cards):
 - **Known issue**: 11-13 cards can take **minutes to hours** depending on initial order
 
 For 13 cards:
-- Theoretical state space: 13! ≈ 6.2 billion permutations
+- Theoretical state space: 13! = 6,227,020,800 permutations
 - BFS must explore many states before finding a solution
 - Some orderings may exhaust memory or take prohibitively long
 

@@ -116,7 +116,6 @@ def get_bottom_placement():
     """
     while True:
         bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: yes]: ")
-        # Change default to True (yes)
         if bottom_placement_input.strip() == "":
             return True
         allow_bottom, error = CardInputHelper.validate_bottom_placement(bottom_placement_input)
