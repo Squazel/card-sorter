@@ -115,7 +115,10 @@ def get_bottom_placement():
         bool: True if placement at bottom is allowed, False otherwise
     """
     while True:
-        bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: no]: ")
+        bottom_placement_input = input("Allow placement at bottom of pile? (yes/no) [default: yes]: ")
+        # Change default to True (yes)
+        if bottom_placement_input.strip() == "":
+            return True
         allow_bottom, error = CardInputHelper.validate_bottom_placement(bottom_placement_input)
         if not error:
             return allow_bottom
@@ -162,13 +165,14 @@ def main():
     print("Welcome to Card Sorter!")
     print("------------------------")
     
-    # Get card input from user
-    card_input = input("Enter cards as comma-separated values (e.g., 2h,3s,4d,Th,...): ")
-    cards = parse_cards(card_input)
-    
-    if not cards:
-        print("No valid cards provided. Exiting.")
-        return
+    # Get card input from user, re-prompting if duplicates detected
+    cards = []
+    while not cards:
+        card_input = input("Enter cards as comma-separated values (e.g., 2h,3s,4d,Th,...): ")
+        cards = parse_cards(card_input)
+        
+        if not cards:
+            print("No valid cards provided. Please try again.\n")
     
     # Get game selection using simple console menu
     game = get_game_selection()
