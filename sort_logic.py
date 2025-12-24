@@ -26,6 +26,9 @@ class PassPlan:
     moves: List[Move]               # per card decisions in scan order
     next_deck: List[int]            # deck after recombining
     piles_snapshot: Dict[str, List[int]]  # recorded as they will appear when picked up into next_deck
+    pickup_strategy: str = "ALL"    # 'ALL' (both piles), 'P1' (pile 1 only), 'P2' (pile 2 only), 'P2_FIRST' (P2 then P1)
+    table_pile: Tuple[int, ...] = ()  # Cards left on table (empty tuple if none)
+    table_pile_id: Optional[int] = None  # Which pile was left on table (1 or 2, None if none)
 
 
 @dataclass
@@ -130,19 +133,22 @@ def generate_all_configs(num_piles: int, allow_bottom: bool) -> List[Tuple[str, 
     return build(num_piles)
 
 
-def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
+def one_pass_greedy_distribution_with_table(
+    deck: List[int], 
+    config: Tuple[str, ...], 
+    pickup_strategy: str = "ALL",
+    table_pile: Tuple[int, ...] = (),
+    table_pile_id: Optional[int] = None
+) -> PassPlan:
     """
-    Execute one pass with greedy card distribution.
-    
-    For each card in order, choose which pile to place it on based on a simple heuristic:
-    - Try to maintain increasing sequences within piles when using 'B' orientation
-    - Try to maintain decreasing sequences within piles when using 'T' orientation
-    
-    This allows more flexibility than round-robin while remaining tractable.
+    Execute one pass with greedy card distribution, supporting pile persistence.
     
     Args:
-        deck: The current deck of cards
+        deck: The current deck of cards in hand
         config: Tuple of 'T' and 'B' indicating pile orientations
+        pickup_strategy: How to pick up piles ('ALL', 'P1', 'P2', 'P2_FIRST')
+        table_pile: Cards already on table from previous pass (in pickup order)
+        table_pile_id: Which pile the table cards belong to (1 or 2, None if empty)
         
     Returns:
         A PassPlan object with the results of this pass
@@ -153,9 +159,22 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
         raise ValueError("Cannot use 1 pile with top placement only; allow_bottom must be True.")
     
     piles: List[List[int]] = [[] for _ in range(num_piles)]
+    
+    # If there's a table pile, initialize that pile with its cards
+    if table_pile_id is not None and table_pile:
+        # table_pile is in pickup order, need to reverse based on orientation
+        pile_idx = table_pile_id - 1
+        orientation = config[pile_idx]
+        # Reverse the logic: if orientation is 'B', pickup was in order, so pile is in order
+        # If orientation is 'T', pickup was reversed, so we need to reverse again to get original
+        if orientation == 'T':
+            piles[pile_idx] = list(reversed(table_pile))
+        else:
+            piles[pile_idx] = list(table_pile)
+    
     moves: List[Move] = []
     
-    # For each card, greedily choose the best pile
+    # For each card in hand, greedily choose the best pile
     for card in deck:
         best_pile = 0
         best_score = -float('inf')
@@ -188,25 +207,75 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
                 best_pile = pile_idx
         
         # Place card on best pile
-        pile_was_empty = len(piles[best_pile]) == 0
+        pile_was_empty = len(piles[best_pile]) == 0 and (table_pile_id != best_pile + 1)
         piles[best_pile].append(card)
-        # If pile was empty, don't specify T/B (nothing to put it under/above)
+        # If pile was empty and not the table pile, don't specify T/B
         if pile_was_empty:
             moves.append(Move(card, f"P{best_pile+1}"))
         else:
             moves.append(Move(card, f"P{best_pile+1}-{config[best_pile]}"))
     
-    # Build next deck: piles in increasing order (P1, P2)
+    # Build next deck based on pickup strategy
     piles_for_pickup = {
         f"P{j+1}-{config[j]}": materialize_pile_for_pickup(config[j], piles[j])
         for j in range(num_piles)
     }
-    next_deck = []
-    for j in range(num_piles):
-        pile_key = f"P{j+1}-{config[j]}"
-        next_deck.extend(piles_for_pickup[pile_key])
     
-    return PassPlan(config=config, moves=moves, next_deck=next_deck, piles_snapshot=piles_for_pickup)
+    next_deck = []
+    new_table_pile = ()
+    new_table_pile_id = None
+    
+    if pickup_strategy == "ALL":
+        # Pick up both piles: P1 first, then P2
+        for j in range(num_piles):
+            pile_key = f"P{j+1}-{config[j]}"
+            next_deck.extend(piles_for_pickup[pile_key])
+    elif pickup_strategy == "P1":
+        # Pick up P1 only, leave P2 on table
+        next_deck.extend(piles_for_pickup[f"P1-{config[0]}"])
+        new_table_pile = tuple(piles_for_pickup[f"P2-{config[1]}"])
+        new_table_pile_id = 2
+    elif pickup_strategy == "P2":
+        # Pick up P2 only, leave P1 on table
+        next_deck.extend(piles_for_pickup[f"P2-{config[1]}"])
+        new_table_pile = tuple(piles_for_pickup[f"P1-{config[0]}"])
+        new_table_pile_id = 1
+    elif pickup_strategy == "P2_FIRST":
+        # Pick up both piles: P2 first, then P1
+        for j in reversed(range(num_piles)):
+            pile_key = f"P{j+1}-{config[j]}"
+            next_deck.extend(piles_for_pickup[pile_key])
+    
+    return PassPlan(
+        config=config, 
+        moves=moves, 
+        next_deck=next_deck, 
+        piles_snapshot=piles_for_pickup,
+        pickup_strategy=pickup_strategy,
+        table_pile=new_table_pile,
+        table_pile_id=new_table_pile_id
+    )
+
+
+def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
+    """
+    Execute one pass with greedy card distribution (backward compatible wrapper).
+    
+    For each card in order, choose which pile to place it on based on a simple heuristic:
+    - Try to maintain increasing sequences within piles when using 'B' orientation
+    - Try to maintain decreasing sequences within piles when using 'T' orientation
+    
+    This allows more flexibility than round-robin while remaining tractable.
+    
+    Args:
+        deck: The current deck of cards
+        config: Tuple of 'T' and 'B' indicating pile orientations
+        
+    Returns:
+        A PassPlan object with the results of this pass
+    """
+    # Use the enhanced function with default parameters for backward compatibility
+    return one_pass_greedy_distribution_with_table(deck, config, pickup_strategy="ALL")
 
 
 
