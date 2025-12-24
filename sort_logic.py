@@ -211,61 +211,6 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
 
 
 
-def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
-    """
-    Execute one pass with fixed pile-orientations given by config.
-    
-    Args:
-        deck: The current deck of cards
-        config: Tuple of 'T' and 'B' indicating pile orientations
-        
-    Returns:
-        A PassPlan object with the results of this pass
-        
-    TODO: To support the new action model (see ALGORITHM.md):
-    - Add pickup_strategy parameter to specify which piles to pick up
-    - Modify to handle dealing onto piles that already have cards
-    - Update state representation to track cards in hand vs on table
-    """
-    assert all(c in ('T','B') for c in config)
-    num_piles = len(config)
-    if num_piles == 1 and config[0] == 'T':
-        raise ValueError("Cannot use 1 pile with top placement only; allow_bottom must be True.")
-    piles: List[List[int]] = [[] for _ in range(num_piles)]
-    last_vals: List[Optional[int]] = [None] * num_piles
-    moves: List[Move] = []
-    leftovers: List[int] = []
-
-    # Process each card in the deck
-    for idx, x in enumerate(deck):
-        # TODO: Explore non-round-robin distributions for better solutions
-        # Currently: Always deal into piles in round-robin fashion
-        # New model: Allow free choice of pile for each card
-        j = idx % num_piles
-        pile_was_empty = len(piles[j]) == 0
-        piles[j].append(x)
-        last_vals[j] = x
-        # If pile was empty, don't specify T/B (nothing to put it under/above)
-        if pile_was_empty:
-            moves.append(Move(x, f"P{j+1}"))
-        else:
-            moves.append(Move(x, f"P{j+1}-{config[j]}"))
-
-    # Build next deck: leftovers on top, then piles in increasing order (P1, P2, ..., PN)
-    piles_for_pickup = {
-        f"P{j+1}-{config[j]}": materialize_pile_for_pickup(config[j], piles[j])
-        for j in range(num_piles)
-    }
-    next_deck = leftovers[:]
-    # TODO: Support flexible pickup strategies (P1 only, P2 only, P1+P2, P2+P1)
-    # Currently: Add piles in increasing order (lowest number first)
-    for j in range(num_piles):
-        pile_key = f"P{j+1}-{config[j]}"
-        next_deck.extend(piles_for_pickup[pile_key])
-
-    return PassPlan(config=config, moves=moves, next_deck=next_deck, piles_snapshot=piles_for_pickup)
-
-
 # ---------- Main sorting algorithm ----------
 def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult:
     """
