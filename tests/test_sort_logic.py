@@ -71,7 +71,8 @@ class TestSortLogic(unittest.TestCase):
         deck = [3, 1, 4, 2]
         result = one_pass(deck, ("B",))  # Use bottom instead of top
         # With bottom placement, the pile order is preserved when picked up
-        pile_content = [move.card for move in result.moves if move.where == "P1-B"]
+        # Note: First card to pile will be "P1", subsequent cards will be "P1-B"
+        pile_content = [move.card for move in result.moves if move.where.startswith("P1")]
         # For one pile, expected_deck is just the pile (pickup order)
         expected_deck = pile_content
         self.assertEqual(result.next_deck, expected_deck)

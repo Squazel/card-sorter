@@ -16,7 +16,7 @@ import heapq
 class Move:
     """Represents a move of a card to a specific pile location."""
     card: int
-    where: str  # 'P1-T','P1-B','P2-T','P2-B',...,'PN-T','PN-B','L' (Leftover)
+    where: str  # 'P1','P2',...,'PN' (first card to pile), 'P1-T','P1-B','P2-T','P2-B',...,'PN-T','PN-B' (subsequent cards), 'L' (Leftover)
 
 
 @dataclass
@@ -175,8 +175,13 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
                 best_pile = pile_idx
         
         # Place card on best pile
+        pile_was_empty = len(piles[best_pile]) == 0
         piles[best_pile].append(card)
-        moves.append(Move(card, f"P{best_pile+1}-{config[best_pile]}"))
+        # If pile was empty, don't specify T/B (nothing to put it under/above)
+        if pile_was_empty:
+            moves.append(Move(card, f"P{best_pile+1}"))
+        else:
+            moves.append(Move(card, f"P{best_pile+1}-{config[best_pile]}"))
     
     # Build next deck: piles in increasing order (P1, P2)
     piles_for_pickup = {
@@ -224,9 +229,14 @@ def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
         # Currently: Always deal into piles in round-robin fashion
         # New model: Allow free choice of pile for each card
         j = idx % num_piles
+        pile_was_empty = len(piles[j]) == 0
         piles[j].append(x)
         last_vals[j] = x
-        moves.append(Move(x, f"P{j+1}-{config[j]}"))
+        # If pile was empty, don't specify T/B (nothing to put it under/above)
+        if pile_was_empty:
+            moves.append(Move(x, f"P{j+1}"))
+        else:
+            moves.append(Move(x, f"P{j+1}-{config[j]}"))
 
     # Build next deck: leftovers on top, then piles in increasing order (P1, P2, ..., PN)
     piles_for_pickup = {
@@ -463,10 +473,14 @@ def format_human_readable_plan(result: SortResult) -> List[str]:
         for move in plan.moves:
             if move.where == "L":
                 instructions.append(f"  Place card {move.card} in leftover pile")
-            else:
+            elif "-" in move.where:
+                # Format: "P1-T" or "P1-B"
                 pile_num, placement = move.where.split("-")
                 place_desc = "on top" if placement == "T" else "at bottom"
                 instructions.append(f"  Place card {move.card} {place_desc} of {pile_num}")
+            else:
+                # Format: "P1" (first card to empty pile)
+                instructions.append(f"  Place card {move.card} in {move.where}")
         
         # Describe pickup order
         instructions.append("Pickup order:")
