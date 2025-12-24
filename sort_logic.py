@@ -191,64 +191,6 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
     return PassPlan(config=config, moves=moves, next_deck=next_deck, piles_snapshot=piles_for_pickup)
 
 
-def one_pass_smart(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
-    """
-    Execute one pass with smart card distribution based on card values.
-    
-    For large decks, distributes cards to piles in a way that tends to improve sorting.
-    Strategy: smaller cards to pile 1, larger cards to pile 2, alternating middle values.
-    
-    Args:
-        deck: The current deck of cards
-        config: Tuple of 'T' and 'B' indicating pile orientations
-        
-    Returns:
-        A PassPlan object with the results of this pass
-    """
-    assert all(c in ('T','B') for c in config)
-    num_piles = len(config)
-    if num_piles == 1 and config[0] == 'T':
-        raise ValueError("Cannot use 1 pile with top placement only; allow_bottom must be True.")
-    if num_piles != 2:
-        # Fall back to round-robin for non-2-pile cases
-        return one_pass(deck, config)
-    
-    piles: List[List[int]] = [[] for _ in range(num_piles)]
-    moves: List[Move] = []
-    
-    # Smart distribution: sort cards by value and alternate
-    # This helps separate small and large values
-    indexed_cards = [(card, idx) for idx, card in enumerate(deck)]
-    indexed_cards.sort(key=lambda x: x[0])
-    
-    # Distribute: lower half to pile 0, upper half to pile 1
-    # But maintain original relative order within each pile
-    pile_assignments = [0] * len(deck)
-    mid = len(deck) // 2
-    
-    for i, (card, orig_idx) in enumerate(indexed_cards):
-        if i < mid:
-            pile_assignments[orig_idx] = 0
-        else:
-            pile_assignments[orig_idx] = 1
-    
-    # Deal cards in original order to assigned piles
-    for idx, card in enumerate(deck):
-        pile_idx = pile_assignments[idx]
-        piles[pile_idx].append(card)
-        moves.append(Move(card, f"P{pile_idx+1}-{config[pile_idx]}"))
-    
-    # Build next deck: piles in increasing order (P1, P2)
-    piles_for_pickup = {
-        f"P{j+1}-{config[j]}": materialize_pile_for_pickup(config[j], piles[j])
-        for j in range(num_piles)
-    }
-    next_deck = []
-    for j in range(num_piles):
-        pile_key = f"P{j+1}-{config[j]}"
-        next_deck.extend(piles_for_pickup[pile_key])
-    
-    return PassPlan(config=config, moves=moves, next_deck=next_deck, piles_snapshot=piles_for_pickup)
 
 
 def one_pass(deck: List[int], config: Tuple[str, ...]) -> PassPlan:
@@ -337,7 +279,7 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
 
 def _bfs_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult:
     """
-    BFS-based optimal sorting for small decks (<=7 cards).
+    BFS-based optimal sorting for small decks (<=10 cards).
     Guaranteed to find the solution with minimum iterations.
     """
     start_tuple = tuple(deck)
