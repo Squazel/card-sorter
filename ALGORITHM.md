@@ -144,6 +144,26 @@ For the Bridge use case (13 cards):
 - **Memory**: Limit visited states to reasonable size (< 100MB)
 - **Iterations**: Prefer solutions with ≤ 5 iterations for user experience
 
+### Current Performance Limitations
+
+**Important**: The current BFS implementation has **practical limits** on deck size:
+
+- **Efficient range**: 3-7 cards (completes in under 1 second)
+- **Practical limit**: 8-10 cards (may take several seconds)
+- **Known issue**: 11-13 cards can take **minutes to hours** depending on initial order
+
+For 13 cards:
+- Theoretical state space: 13! ≈ 6.2 billion permutations
+- BFS must explore many states before finding a solution
+- Some orderings may exhaust memory or take prohibitively long
+
+**Workaround**: For 13-card hands that are slow, consider:
+1. Using fewer piles (but this may not find a solution)
+2. Using a heuristic approach instead of exhaustive BFS
+3. Implementing the enhanced state representation with pile persistence (future work)
+
+This limitation is documented in the "Implementation Gap" section below.
+
 ## Implementation Notes
 
 The current implementation in `sort_logic.py`:
