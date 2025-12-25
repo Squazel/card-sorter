@@ -82,6 +82,55 @@ def sortedness_heuristic(deck: List[int]) -> float:
     return 1.0 - (inversions / max_inv if max_inv else 0.0)
 
 
+def lis_heuristic(deck: List[int]) -> float:
+    """Return a score based on longest increasing subsequence length."""
+    n = len(deck)
+    if n <= 1:
+        return 1.0
+    
+    # Compute LIS length using dynamic programming
+    dp = [1] * n
+    for i in range(1, n):
+        for j in range(i):
+            if deck[j] < deck[i]:
+                dp[i] = max(dp[i], dp[j] + 1)
+    
+    lis_length = max(dp)
+    return lis_length / n
+
+
+def lds_heuristic(deck: List[int]) -> float:
+    """Return a score based on longest decreasing subsequence length."""
+    n = len(deck)
+    if n <= 1:
+        return 1.0
+    
+    # Compute LDS length using dynamic programming
+    dp = [1] * n
+    for i in range(1, n):
+        for j in range(i):
+            if deck[j] > deck[i]:
+                dp[i] = max(dp[i], dp[j] + 1)
+    
+    lds_length = max(dp)
+    return lds_length / n
+
+
+def longest_monotonic_subsequence_heuristic(deck: List[int]) -> float:
+    """Return a score based on longest monotonic (increasing or decreasing) subsequence."""
+    if len(deck) <= 1:
+        return 1.0
+    
+    # Take the maximum of LIS and LDS since we can use either orientation
+    return max(lis_heuristic(deck), lds_heuristic(deck))
+
+
+def combined_heuristic(deck: List[int]) -> float:
+    """Combined heuristic using sortedness and longest monotonic subsequence."""
+    # Give more weight to the monotonic subsequence since it's more relevant for pile sorting
+    return 0.3 * sortedness_heuristic(deck) + 0.7 * longest_monotonic_subsequence_heuristic(deck)
+
+
 def validate_input(deck: List[int]) -> None:
     """Validate the input deck to ensure it contains distinct natural numbers."""
     if any(x <= 0 or not isinstance(x, int) for x in deck):
@@ -310,7 +359,7 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool, use_persis
     
     # Use enhanced beam search with pile persistence for large decks when requested
     if use_persistence and num_piles == 2 and len(deck) > 10:
-        return _beam_search_sort_with_persistence(deck, num_piles, allow_bottom, beam_width=100, max_depth=20)
+        return _beam_search_sort_with_persistence(deck, num_piles, allow_bottom, beam_width=200, max_depth=25)
     
     # Use enhanced BFS with pile persistence for small-medium decks
     if use_persistence and num_piles == 2 and len(deck) <= 10:
@@ -452,15 +501,15 @@ def _beam_search_sort(deck: List[int], num_piles: int, allow_bottom: bool, beam_
         if not next_beam:
             break
         
-        # Keep only top beam_width states based on sortedness heuristic
-        next_beam_scored = [(sortedness_heuristic(list(state)), state, path) 
+        # Keep only top beam_width states based on combined heuristic
+        next_beam_scored = [(combined_heuristic(list(state)), state, path) 
                             for state, path in next_beam]
         next_beam_scored.sort(reverse=True, key=lambda x: x[0])
         current_beam = [(state, path) for _, state, path in next_beam_scored[:beam_width]]
     
     # If no solution found, return best attempt
     if current_beam:
-        best_state, best_path = max(current_beam, key=lambda x: sortedness_heuristic(list(x[0])))
+        best_state, best_path = max(current_beam, key=lambda x: combined_heuristic(list(x[0])))
         history = [deck[:]]
         for plan in best_path:
             history.append(plan.next_deck[:])
@@ -749,13 +798,13 @@ def _beam_search_sort_with_persistence(deck: List[int], num_piles: int, allow_bo
         if not next_beam:
             break
         
-        # Keep only top beam_width states based on sortedness heuristic
+        # Keep only top beam_width states based on combined heuristic
         # For states with table piles, we need to evaluate combined sortedness
         def score_state(state_path):
             state, path = state_path
             hand_tuple, table_pile, table_pile_id = state
             all_cards = list(hand_tuple) + list(table_pile) if table_pile else list(hand_tuple)
-            return sortedness_heuristic(all_cards)
+            return combined_heuristic(all_cards)
         
         next_beam_scored = [(score_state(item), item[0], item[1]) for item in next_beam]
         next_beam_scored.sort(reverse=True, key=lambda x: x[0])
@@ -767,7 +816,7 @@ def _beam_search_sort_with_persistence(deck: List[int], num_piles: int, allow_bo
             state, path = state_path
             hand_tuple, table_pile, table_pile_id = state
             all_cards = list(hand_tuple) + list(table_pile) if table_pile else list(hand_tuple)
-            return sortedness_heuristic(all_cards)
+            return combined_heuristic(all_cards)
         
         best_state, best_path = max(current_beam, key=score_state_final)
         history = [deck[:]]
