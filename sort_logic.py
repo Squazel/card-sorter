@@ -281,17 +281,18 @@ def one_pass_greedy_distribution(deck: List[int], config: Tuple[str, ...]) -> Pa
 
 
 # ---------- Main sorting algorithm ----------
-def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortResult:
+def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool, use_persistence: bool = False) -> SortResult:
     """
     Find an efficient sorting sequence for the deck using the specified constraints.
     
     For decks <= 10 cards, uses BFS for optimal solution.
-    For decks > 10 cards, uses beam search for fast practical solution.
+    For decks > 10 cards, uses beam search or enhanced beam search with pile persistence.
     
     Args:
         deck: List of integers to sort
         num_piles: Number of piles to use
         allow_bottom: Whether bottom placement is allowed
+        use_persistence: Whether to use pile persistence (allows leaving 1 pile on table)
         
     Returns:
         SortResult object containing plans, passes, explanations, and history
@@ -306,6 +307,14 @@ def optimal_sort(deck: List[int], num_piles: int, allow_bottom: bool) -> SortRes
     # If deck is already sorted, return immediately
     if is_sorted(deck):
         return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
+    
+    # Use enhanced beam search with pile persistence for large decks when requested
+    if use_persistence and num_piles == 2 and len(deck) > 10:
+        return _beam_search_sort_with_persistence(deck, num_piles, allow_bottom, beam_width=100, max_depth=20)
+    
+    # Use enhanced BFS with pile persistence for small-medium decks
+    if use_persistence and num_piles == 2 and len(deck) <= 10:
+        return _bfs_sort_with_persistence(deck, num_piles, allow_bottom, max_depth=10)
     
     # Use BFS for small decks (optimal), beam search for large decks (fast)
     if len(deck) <= 10:
@@ -471,6 +480,323 @@ def _beam_search_sort(deck: List[int], num_piles: int, allow_bottom: bool, beam_
     
     # Fallback: return empty result
     return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
+
+
+def _bfs_sort_with_persistence(deck: List[int], num_piles: int, allow_bottom: bool, max_depth: int = 10) -> SortResult:
+    """
+    Enhanced BFS with pile persistence support.
+    Allows leaving one pile on the table between passes.
+    State: (hand_cards, table_pile, table_pile_id)
+    """
+    # Generate all possible configurations
+    configs = generate_all_configs(num_piles, allow_bottom)
+    if num_piles == 1:
+        configs = [cfg for cfg in configs if cfg != ('T',)]
+    
+    # Pickup strategies to explore (only for 2 piles)
+    if num_piles == 2:
+        pickup_strategies = ["ALL", "P1", "P2", "P2_FIRST"]
+    else:
+        pickup_strategies = ["ALL"]
+    
+    # Extended state: (hand_tuple, table_pile_tuple, table_pile_id)
+    start_state = (tuple(deck), (), None)
+    
+    # BFS
+    queue = deque([start_state])
+    visited = {start_state}
+    parent: Dict[Tuple, Tuple[Tuple, PassPlan]] = {}
+    
+    while queue:
+        current_state = queue.popleft()
+        hand_tuple, table_pile, table_pile_id = current_state
+        hand = list(hand_tuple)
+        
+        # Check if everything is sorted
+        # Case 1: All cards are in hand (no table pile) and hand is sorted
+        if not table_pile and is_sorted(hand):
+            # Reconstruct path
+            plans: List[PassPlan] = []
+            history: List[List[int]] = []
+            
+            state = current_state
+            while state != start_state:
+                prev_state, plan = parent[state]
+                plans.append(plan)
+                # For history, we track the hand state (what's in hand)
+                history.append(list(state[0]))
+                state = prev_state
+            
+            # Reverse to get chronological order
+            plans.reverse()
+            history.reverse()
+            history.insert(0, deck[:])
+            
+            # Create explanations
+            explanations = []
+            for i, plan in enumerate(plans):
+                config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                        for j, c in enumerate(plan.config)])
+                pickup_desc = {
+                    "ALL": "pickup both piles (P1, P2)",
+                    "P1": "pickup P1 only (leave P2 on table)",
+                    "P2": "pickup P2 only (leave P1 on table)",
+                    "P2_FIRST": "pickup both piles (P2, P1)"
+                }.get(plan.pickup_strategy, plan.pickup_strategy)
+                explanations.append(f"Pass {i+1}: {config_desc}, {pickup_desc}")
+            
+            return SortResult(
+                passes=len(plans),
+                plans=plans,
+                explanations=explanations,
+                history=history
+            )
+        
+        # Case 2: There's a table pile - check if we can pick it up to complete sorting
+        if table_pile and hand:
+            combined = list(hand) + list(table_pile)
+            if is_sorted(combined):
+                # Reconstruct path
+                plans: List[PassPlan] = []
+                history: List[List[int]] = []
+                
+                state = current_state
+                while state != start_state:
+                    prev_state, plan = parent[state]
+                    plans.append(plan)
+                    history.append(list(state[0]))
+                    state = prev_state
+                
+                plans.reverse()
+                history.reverse()
+                history.insert(0, deck[:])
+                history.append(combined)
+                
+                # Create a final plan for picking up table pile
+                final_plan = one_pass_greedy_distribution_with_table(
+                    [], configs[0], "ALL", table_pile, table_pile_id
+                )
+                final_plan.next_deck = combined
+                plans.append(final_plan)
+                
+                explanations = []
+                for i, plan in enumerate(plans[:-1]):
+                    config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                            for j, c in enumerate(plan.config)])
+                    pickup_desc = {
+                        "ALL": "pickup both piles (P1, P2)",
+                        "P1": "pickup P1 only (leave P2 on table)",
+                        "P2": "pickup P2 only (leave P1 on table)",
+                        "P2_FIRST": "pickup both piles (P2, P1)"
+                    }.get(plan.pickup_strategy, plan.pickup_strategy)
+                    explanations.append(f"Pass {i+1}: {config_desc}, {pickup_desc}")
+                explanations.append(f"Pass {len(plans)}: pickup remaining table pile")
+                
+                return SortResult(
+                    passes=len(plans),
+                    plans=plans,
+                    explanations=explanations,
+                    history=history
+                )
+        
+        # Don't go too deep
+        # Count the depth by reconstructing path
+        depth = 0
+        state = current_state
+        while state in parent:
+            depth += 1
+            state = parent[state][0]
+        
+        if depth >= max_depth:
+            continue
+        
+        # Try each configuration and pickup strategy
+        for config in configs:
+            for pickup_strategy in pickup_strategies:
+                plan = one_pass_greedy_distribution_with_table(
+                    hand, config, pickup_strategy, table_pile, table_pile_id
+                )
+                
+                # New state after this pass
+                new_hand = tuple(plan.next_deck)
+                new_table_pile = plan.table_pile
+                new_table_pile_id = plan.table_pile_id
+                new_state = (new_hand, new_table_pile, new_table_pile_id)
+                
+                if new_state not in visited:
+                    visited.add(new_state)
+                    parent[new_state] = (current_state, plan)
+                    queue.append(new_state)
+    
+    # No solution found
+    raise ValueError("Unable to sort the deck with the given constraints.")
+
+
+def _beam_search_sort_with_persistence(deck: List[int], num_piles: int, allow_bottom: bool, beam_width: int = 30, max_depth: int = 10) -> SortResult:
+    """
+    Beam search with pile persistence support for large decks.
+    Allows leaving one pile on the table between passes.
+    State: (hand_cards, table_pile, table_pile_id)
+    """
+    # Generate all possible configurations
+    configs = generate_all_configs(num_piles, allow_bottom)
+    if num_piles == 1:
+        configs = [cfg for cfg in configs if cfg != ('T',)]
+    
+    # Pickup strategies to explore (only for 2 piles)
+    if num_piles == 2:
+        pickup_strategies = ["ALL", "P1", "P2", "P2_FIRST"]
+    else:
+        pickup_strategies = ["ALL"]
+    
+    # Extended state: (hand_tuple, table_pile_tuple, table_pile_id)
+    start_state = (tuple(deck), (), None)
+    
+    # Beam search: keep top-k states at each level
+    # Each beam entry: (state, path_from_start)
+    current_beam = [(start_state, [])]
+    visited_global = {start_state}
+    
+    for depth in range(max_depth):
+        next_beam = []
+        
+        for current_state, path in current_beam:
+            hand_tuple, table_pile, table_pile_id = current_state
+            hand = list(hand_tuple)
+            
+            # Check if everything is sorted
+            # Case 1: All cards are in hand (no table pile) and hand is sorted
+            if not table_pile and is_sorted(hand):
+                # Found solution! Reconstruct and return
+                history = [deck[:]]
+                for plan in path:
+                    history.append(plan.next_deck[:])
+                
+                explanations = []
+                for i, plan in enumerate(path):
+                    config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                            for j, c in enumerate(plan.config)])
+                    pickup_desc = {
+                        "ALL": "pickup both piles (P1, P2)",
+                        "P1": "pickup P1 only (leave P2 on table)",
+                        "P2": "pickup P2 only (leave P1 on table)",
+                        "P2_FIRST": "pickup both piles (P2, P1)"
+                    }.get(plan.pickup_strategy, plan.pickup_strategy)
+                    explanations.append(f"Pass {i+1}: {config_desc}, {pickup_desc}")
+                
+                return SortResult(
+                    passes=len(path),
+                    plans=path,
+                    explanations=explanations,
+                    history=history
+                )
+            
+            # Case 2: There's a table pile - check if we can pick it up to complete sorting
+            if table_pile and hand:
+                # Try picking up the table pile (simulating "ALL" pickup with empty dealing)
+                combined = list(hand) + list(table_pile)
+                if is_sorted(combined):
+                    # We can complete by picking up the table pile
+                    # Create a final pass plan that represents picking up the table pile
+                    final_plan = one_pass_greedy_distribution_with_table(
+                        [], configs[0], "ALL", table_pile, table_pile_id
+                    )
+                    final_plan.next_deck = combined
+                    
+                    history = [deck[:]]
+                    for plan in path:
+                        history.append(plan.next_deck[:])
+                    history.append(combined)
+                    
+                    explanations = []
+                    for i, plan in enumerate(path):
+                        config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                                for j, c in enumerate(plan.config)])
+                        pickup_desc = {
+                            "ALL": "pickup both piles (P1, P2)",
+                            "P1": "pickup P1 only (leave P2 on table)",
+                            "P2": "pickup P2 only (leave P1 on table)",
+                            "P2_FIRST": "pickup both piles (P2, P1)"
+                        }.get(plan.pickup_strategy, plan.pickup_strategy)
+                        explanations.append(f"Pass {i+1}: {config_desc}, {pickup_desc}")
+                    explanations.append(f"Pass {len(path)+1}: pickup remaining table pile")
+                    
+                    return SortResult(
+                        passes=len(path) + 1,
+                        plans=path + [final_plan],
+                        explanations=explanations,
+                        history=history
+                    )
+            
+            # Generate successors with greedy distribution and all pickup strategies
+            for config in configs:
+                for pickup_strategy in pickup_strategies:
+                    plan = one_pass_greedy_distribution_with_table(
+                        hand, config, pickup_strategy, table_pile, table_pile_id
+                    )
+                    
+                    # New state after this pass
+                    new_hand = tuple(plan.next_deck)
+                    new_table_pile = plan.table_pile
+                    new_table_pile_id = plan.table_pile_id
+                    new_state = (new_hand, new_table_pile, new_table_pile_id)
+                    
+                    if new_state not in visited_global:
+                        visited_global.add(new_state)
+                        new_path = path + [plan]
+                        next_beam.append((new_state, new_path))
+        
+        if not next_beam:
+            break
+        
+        # Keep only top beam_width states based on sortedness heuristic
+        # For states with table piles, we need to evaluate combined sortedness
+        def score_state(state_path):
+            state, path = state_path
+            hand_tuple, table_pile, table_pile_id = state
+            all_cards = list(hand_tuple) + list(table_pile) if table_pile else list(hand_tuple)
+            return sortedness_heuristic(all_cards)
+        
+        next_beam_scored = [(score_state(item), item[0], item[1]) for item in next_beam]
+        next_beam_scored.sort(reverse=True, key=lambda x: x[0])
+        current_beam = [(state, path) for _, state, path in next_beam_scored[:beam_width]]
+    
+    # If no solution found, return best attempt
+    if current_beam:
+        def score_state_final(state_path):
+            state, path = state_path
+            hand_tuple, table_pile, table_pile_id = state
+            all_cards = list(hand_tuple) + list(table_pile) if table_pile else list(hand_tuple)
+            return sortedness_heuristic(all_cards)
+        
+        best_state, best_path = max(current_beam, key=score_state_final)
+        history = [deck[:]]
+        for plan in best_path:
+            history.append(plan.next_deck[:])
+        
+        explanations = []
+        for i, plan in enumerate(best_path):
+            config_desc = ", ".join([f"Pile {j+1}: {'top' if c == 'T' else 'bottom'}" 
+                                    for j, c in enumerate(plan.config)])
+            pickup_desc = {
+                "ALL": "pickup both piles (P1, P2)",
+                "P1": "pickup P1 only (leave P2 on table)",
+                "P2": "pickup P2 only (leave P1 on table)",
+                "P2_FIRST": "pickup both piles (P2, P1)"
+            }.get(plan.pickup_strategy, plan.pickup_strategy)
+            explanations.append(f"Pass {i+1}: {config_desc}, {pickup_desc}")
+        
+        return SortResult(
+            passes=len(best_path),
+            plans=best_path,
+            explanations=explanations,
+            history=history
+        )
+    
+    # Fallback: return empty result
+    return SortResult(passes=0, plans=[], explanations=[], history=[deck[:]])
+
+
 # ---------- User-friendly output functions ----------
 def format_human_readable_plan(result: SortResult) -> List[str]:
     """
