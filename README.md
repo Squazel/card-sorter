@@ -30,9 +30,24 @@ The file `sort_logic.py` contains the consolidated card sorting algorithm:
 - Works with any set of distinct natural numbers (not necessarily sequential)
 - Supports configurable number of piles (capped at 2 for reliability)
 - Offers optional bottom placement capability
-- Uses breadth-first search to find optimal solutions
+- **Enhanced pile persistence mode**: Allows leaving one pile on the table between passes
+- **Multiple pickup strategies**: Explores P1-only, P2-only, both (P1+P2), and reverse (P2+P1)
+- **Advanced heuristics**: Uses longest monotonic subsequence for better state evaluation
+- Uses breadth-first search for small decks (optimal solutions)
+- Uses beam search for large decks (fast practical solutions)
 - Generates detailed step-by-step explanations of the sorting process
 - Exposes a `sort_cards` convenience API that validates the final state
+
+**Key Features**:
+- **Greedy card distribution**: Intelligently places each card to maintain sorted sequences
+- **Pile persistence**: Extended state representation `(hand_cards, table_pile, pile_id)`
+- **Flexible pickup**: All 4 pickup strategies explored during search
+- **Dual modes**: Traditional sorting or enhanced with pile persistence via `use_persistence` parameter
+
+**Performance**:
+- Small decks (≤10 cards): Optimal solutions, often with improved pass counts
+- 13-card hands (traditional mode): ~17 passes in <0.1 seconds
+- 13-card hands (with persistence): Currently ~25 passes (target: ≤5)
 
 All tests are in `tests/test_sort_logic.py`.
 
@@ -64,23 +79,37 @@ from sort_logic import optimal_sort, print_sort_solution, sort_cards
 # Example with a list of numbers
 numbers = [7, 2, 10, 4, 9, 1, 5, 8, 3, 6]
 
-# Get a sorting solution (BFS search)
+# Traditional sorting (optimal for small decks)
 result = optimal_sort(
     deck=numbers,
-    max_piles=2,       # Maximum number of piles to use (capped to 2 internally)
+    num_piles=2,       # Maximum number of piles to use
     allow_bottom=True  # Whether to allow placement at the bottom of piles
+)
+
+# Enhanced sorting with pile persistence (for potential optimization)
+result_enhanced = optimal_sort(
+    deck=numbers,
+    num_piles=2,
+    allow_bottom=True,
+    use_persistence=True  # Enable pile persistence feature
 )
 
 # Or use the convenience API that validates the final state
 validated = sort_cards(
     deck=numbers,
-    max_piles=2,
+    num_piles=2,
     allow_bottom=True
 )
 
 # Print a human-readable solution for either result
 print_sort_solution(numbers, num_piles=2, allow_bottom=True)
 ```
+
+**Algorithm Modes**:
+- `use_persistence=False` (default): Traditional sorting, always picks up all piles
+- `use_persistence=True`: Enhanced mode with flexible pickup strategies, can leave one pile on table between passes
+
+**Note**: The enhanced pile persistence mode is experimental for 13-card hands and may not yet achieve optimal results. For production use with 13-card hands, use the default traditional mode which reliably sorts in ~17 passes.
 
 ## Development
 
