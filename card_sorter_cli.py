@@ -34,12 +34,11 @@ def get_game_selection() -> str:
     # Get user selection
     while True:
         try:
-            choice = input("\nEnter selection (1-{}): ".format(len(game_options))).strip()
+            choice = input("\nEnter selection (1-{}) [default: 1]: ".format(len(game_options))).strip()
             # Use default if empty
             if not choice:
-                selection = 0
-            else:
-                selection = int(choice) - 1
+                choice = 1
+            selection = int(choice) - 1
             if 0 <= selection < len(game_options):
                 return game_options[selection]
             else:
